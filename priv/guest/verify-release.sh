@@ -11,7 +11,11 @@ pid=''
 healthy=false
 : > /tmp/nerves-health.log
 while [ "$SECONDS" -lt "$deadline" ]; do
-  state=$(sudo -n launchctl print system/org.nerves.application)
+  if ! state=$(sudo -n launchctl print system/org.nerves.application 2>/tmp/nerves-health.log); then
+    echo 'Waiting for launchd registration'
+    sleep 2
+    continue
+  fi
   pid=$(printf '%s\n' "$state" | awk '/^[[:space:]]*pid = / {print $3; exit}')
   if [ -n "$pid" ] && "$root/bin/$name" rpc \
     '{:ok, [apps]} = :file.consult(~c"/opt/nerves/app/nerves-applications.config"); started = Application.started_applications(); Enum.each(apps, fn app -> true = List.keymember?(started, app, 0) end); IO.puts("All release applications are running")' > /tmp/nerves-health.log 2>&1; then

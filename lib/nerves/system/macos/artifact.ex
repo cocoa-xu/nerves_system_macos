@@ -87,7 +87,7 @@ defmodule Nerves.System.MacOS.Artifact do
 
       read!(path)
       image = Path.join(path, "system.tart")
-      if File.dir?(image), do: VM.validate!(image)
+      VM.validate!(image)
       File.rm_rf!(path)
     end
   end

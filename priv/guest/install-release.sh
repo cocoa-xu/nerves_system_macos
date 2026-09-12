@@ -2,6 +2,7 @@ set -euo pipefail
 
 release_root=/opt/nerves/app
 test ! -e /opt/nerves
+test ! -L /opt/nerves
 sudo -n mkdir -p "$release_root" /var/lib/nerves /var/log/nerves
 sudo -n tar -xzf /tmp/nerves-release.tar.gz -C "$release_root"
 rm /tmp/nerves-release.tar.gz

@@ -3,8 +3,7 @@ defmodule Nerves.System.MacOS do
   Builds Nerves system artifacts for macOS guests on Apple silicon.
 
   System packages select this platform and `Nerves.Artifact.BuildRunners.Local`.
-  Their `:platform_config` contains a stopped `:base_image` directory, an exact
-  `:macos_version` and `:macos_build`, and a self-contained native `:otp_root`.
+  Configure `:base_spec` to select a base and `:otp_root` for its native runtime.
   """
 
   @behaviour Nerves.Package.Platform
@@ -19,15 +18,12 @@ defmodule Nerves.System.MacOS do
         {:error, "NERVES_SYSTEM is not set"}
 
       path ->
-        if package = Nerves.Env.system() do
-          if package.platform == __MODULE__ do
-            if spec = Config.validate_package!(package) do
-              metadata = Artifact.read!(path)
+        with %{platform: __MODULE__} = package <- Nerves.Env.system(),
+             %{} = spec <- Config.validate_package!(package) do
+          metadata = Artifact.read!(path)
 
-              unless get_in(metadata, ["base", "fingerprint"]) == BaseSpec.fingerprint(spec),
-                do: raise("The cached system does not match the selected base specification")
-            end
-          end
+          unless get_in(metadata, ["base", "fingerprint"]) == BaseSpec.fingerprint(spec),
+            do: raise("The cached system does not match the selected base specification")
         end
 
         Environment.activate(path)

@@ -16,6 +16,9 @@ defmodule Nerves.System.MacOS.Config do
   ]
 
   def new!(options, root) when is_list(options) do
+    unless Keyword.keyword?(options),
+      do: raise(ArgumentError, "Platform options must be a keyword list")
+
     allowed = [
       :base_image,
       :base_spec,
@@ -31,6 +34,8 @@ defmodule Nerves.System.MacOS.Config do
     if unknown != [], do: raise(ArgumentError, "Unknown platform options: #{inspect(unknown)}")
 
     {base_image, spec, base_root, version, build} = base!(options, root)
+    username = if is_nil(options[:username]), do: "admin", else: options[:username]
+    password = if is_nil(options[:password]), do: "admin", else: options[:password]
 
     config = %__MODULE__{
       base_image: base_image,
@@ -40,21 +45,22 @@ defmodule Nerves.System.MacOS.Config do
       macos_build: build,
       otp_root: Path.expand(required!(options, :otp_root), root),
       otp_version: required!(options, :otp_version),
-      username: options[:username] || "admin",
-      password: options[:password] || "admin"
+      username: username,
+      password: password
     }
 
-    unless Regex.match?(~r/^\d+\.\d+(\.\d+)?$/, config.macos_version),
+    unless Regex.match?(~r/\A\d+\.\d+(\.\d+)?\z/, config.macos_version),
       do: raise(ArgumentError, "macos_version must be an exact version")
 
-    unless Regex.match?(~r/^[A-Za-z0-9]+$/, config.macos_build),
+    unless Regex.match?(~r/\A[A-Za-z0-9]+\z/, config.macos_build),
       do: raise(ArgumentError, "macos_build must be an Apple build identifier")
 
-    unless Regex.match?(~r/^\d+(\.\d+)+$/, config.otp_version),
+    unless Regex.match?(~r/\A\d+(\.\d+)+\z/, config.otp_version),
       do: raise(ArgumentError, "otp_version must be an exact version")
 
-    unless Regex.match?(~r/^[a-z_][a-z0-9_-]*$/, config.username),
-      do: raise(ArgumentError, "Invalid guest username")
+    unless is_binary(config.username) and
+             Regex.match?(~r/\A[a-z_][a-z0-9_-]*\z/, config.username),
+           do: raise(ArgumentError, "Invalid guest username")
 
     unless is_binary(config.password) and config.password != "",
       do: raise(ArgumentError, "Guest password must not be empty")

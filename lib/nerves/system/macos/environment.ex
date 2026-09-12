@@ -13,7 +13,16 @@ defmodule Nerves.System.MacOS.Environment do
     erts = Path.join(runtime, "erts-" <> metadata["erts_version"])
     unless File.dir?(erts), do: raise("System ERTS directory is missing")
     sdk = String.trim(Command.run!("xcrun", ["--sdk", "macosx", "--show-sdk-path"]))
-    [interface] = Path.wildcard(Path.join(runtime, "lib/erl_interface-*"))
+
+    interface =
+      case Path.wildcard(Path.join(runtime, "lib/erl_interface-*")) do
+        [path] ->
+          unless File.dir?(path), do: raise("System erl_interface path is not a directory")
+          path
+
+        _ ->
+          raise "System runtime must contain exactly one erl_interface directory"
+      end
 
     values = %{
       "NERVES_SYSTEM" => Path.expand(path),

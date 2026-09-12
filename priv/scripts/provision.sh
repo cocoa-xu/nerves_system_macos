@@ -31,6 +31,7 @@ cleanup() {
 trap cleanup EXIT
 deadline=$((SECONDS + 180))
 ready=false
+: > "$session/ssh.log"
 while [ "$SECONDS" -lt "$deadline" ]; do
   if ! kill -0 "$vm_pid" 2>/dev/null; then
     cat "$session/tart.log" >&2

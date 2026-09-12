@@ -3,8 +3,10 @@ defmodule Nerves.System.MacOS.Runtime do
   alias Nerves.System.MacOS.{Command, Files}
 
   def stage(source, destination, expected_version, macos_version \\ nil) do
-    [erts] = Path.wildcard(Path.join(source, "erts-*"))
-    [version_file] = Path.wildcard(Path.join(source, "releases/*/OTP_VERSION"))
+    erts = exactly_one!(Path.join(source, "erts-*"), "ERTS directory")
+    version_file = exactly_one!(Path.join(source, "releases/*/OTP_VERSION"), "OTP_VERSION file")
+    unless File.dir?(erts), do: raise("Runtime ERTS path is not a directory")
+    Files.regular!(version_file)
     otp_version = version_file |> File.read!() |> String.trim()
 
     unless otp_version == expected_version,
@@ -42,5 +44,12 @@ defmodule Nerves.System.MacOS.Runtime do
         if(macos_version, do: [macos_version], else: [])
 
     Command.run!("python3", args, timeout: 300_000)
+  end
+
+  defp exactly_one!(pattern, description) do
+    case Path.wildcard(pattern) do
+      [path] -> path
+      matches -> raise "Runtime must contain exactly one #{description}, found #{length(matches)}"
+    end
   end
 end

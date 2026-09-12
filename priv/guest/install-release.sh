@@ -13,6 +13,10 @@ test -x "$release_root/bin/$release_name"
 sudo -n chown -R "$GUEST_USERNAME":staff /opt/nerves /var/lib/nerves /var/log/nerves
 label=org.nerves.application
 plist="/Library/LaunchDaemons/$label.plist"
+persistent_environment=''
+if [ "${NERVES_DATA_VOLUME:-0}" = 1 ]; then
+  persistent_environment='<key>NERVES_DATA_DIR</key><string>/Volumes/My Shared Files/nerves-data</string>'
+fi
 sudo -n tee "$plist" >/dev/null <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -22,6 +26,7 @@ sudo -n tee "$plist" >/dev/null <<PLIST
 <key>ProgramArguments</key><array><string>$release_root/bin/$release_name</string><string>start</string></array>
 <key>WorkingDirectory</key><string>/var/lib/nerves</string>
 <key>EnvironmentVariables</key><dict>
+$persistent_environment
 <key>PATH</key><string>/usr/bin:/bin:/usr/sbin:/sbin</string>
 <key>HOME</key><string>/Users/$GUEST_USERNAME</string>
 <key>LANG</key><string>en_US.UTF-8</string>

@@ -37,6 +37,17 @@ defmodule Nerves.System.MacOS.PlatformTest do
     assert Command.run!("/usr/bin/printf", ["%s", "$(exit 99); `false`"]) == "$(exit 99); `false`"
   end
 
+  test "preserves explicitly empty environment values across the process boundary" do
+    assert Command.run!(
+             "/bin/sh",
+             [
+               "-c",
+               "test \"${NERVES_EMPTY+x}\" = x && test -z \"$NERVES_EMPTY\" && echo present"
+             ],
+             env: %{"NERVES_EMPTY" => ""}
+           ) == "present\n"
+  end
+
   test "reports errors and bounds child process lifetime", %{directory: directory} do
     assert_raise RuntimeError, ~r/status 7/, fn ->
       Command.run!("/bin/sh", ["-c", "echo failed; exit 7"])

@@ -17,6 +17,14 @@ defmodule Nerves.System.MacOS.Command do
 
     runner = Nerves.System.MacOS.Files.priv("scripts/run-command.py")
 
+    empty_values =
+      for {key, ""} <- Keyword.get(options, :env, %{}), do: key <> "="
+
+    command_args =
+      if empty_values == [],
+        do: [executable | arguments],
+        else: ["/usr/bin/env" | empty_values] ++ [executable | arguments]
+
     port =
       Port.open({:spawn_executable, to_charlist(supervisor)}, [
         :binary,
@@ -24,7 +32,7 @@ defmodule Nerves.System.MacOS.Command do
         :use_stdio,
         :stderr_to_stdout,
         :hide,
-        args: [runner, to_string(timeout), executable | arguments],
+        args: [runner, to_string(timeout) | command_args],
         env: environment,
         cd: to_charlist(options[:cd] || File.cwd!())
       ])

@@ -173,6 +173,12 @@ firmware task. Physical Mac installation and VirtualBuddy import are not
 implemented here. The output preserves the disk and Apple platform identity
 needed by a future VM adapter.
 
+See the [layer distribution experiment](experiments/layers/README.md) for a
+macOS 27 host workflow with separate base, dependency and application layers,
+measured OCI downloads, and application data shared across version changes.
+Its Python controller is an experiment; the intended integration uses Elixir
+and the Nerves build interfaces.
+
 ## Development
 
 ```sh

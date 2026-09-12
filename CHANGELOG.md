@@ -7,3 +7,5 @@
 - Export the Darwin SDK and Erlang headers for native extensions.
 - Build launchd-managed application firmware and verify two cold boots.
 - Include an example system and an application with a native extension.
+- Support shared application data during VM provisioning.
+- Validate layered OCI installation, updates and rollback on a macOS 27 host.

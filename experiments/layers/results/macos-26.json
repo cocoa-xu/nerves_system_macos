@@ -1,0 +1,59 @@
+{
+  "date": "2026-09-13",
+  "host": {
+    "architecture": "arm64",
+    "hardware": "Apple M4 Pro Mac mini",
+    "macos_version": "27.0",
+    "macos_build": "26A5425a",
+    "tart_version": "2.36.0"
+  },
+  "guest": {
+    "macos_version": "26.6.2",
+    "macos_build": "25G83",
+    "otp_version": "29.0.2",
+    "erts_version": "17.0.2",
+    "openssl_version": "3.6.3",
+    "dependency": "jq-1.8.1"
+  },
+  "topology": "One physical host, independent producer and consumer Tart homes, loopback OCI registry",
+  "measurement": "HTTP blob response payload bytes; excludes manifests, HTTP headers and transport overhead",
+  "passed": true,
+  "layers": {
+    "base_disk_bytes": 25287462558,
+    "dependency_disk_bytes": 296657747,
+    "v1_application_disk_bytes": 326636376,
+    "v2_application_disk_bytes": 330012509
+  },
+  "downloads": {
+    "first-install": {
+      "blob_bytes": 25944336354,
+      "blob_requests": 156,
+      "elapsed_seconds": 55.98,
+      "unchanged_disk_blob_requests": 152
+    },
+    "update": {
+      "blob_bytes": 363592182,
+      "blob_requests": 4,
+      "elapsed_seconds": 0.67,
+      "unchanged_disk_blob_requests": 0
+    },
+    "rollback": {
+      "blob_bytes": 0,
+      "blob_requests": 0,
+      "elapsed_seconds": 0.18,
+      "unchanged_disk_blob_requests": 0
+    }
+  },
+  "persistent_data": "Host directory shared through Tart; user value preserved across 1.0.0, 2.0.0, 1.0.0",
+  "boot_records": [
+    "Hello from macOS Nerves; {~c\"Darwin\", ~c\"arm64\"}; OTP 29; release 1.0.0; boot 7c19a82915f7d4949ecca147bc76eaf3",
+    "Hello from macOS Nerves; {~c\"Darwin\", ~c\"arm64\"}; OTP 29; release 2.0.0; boot a7447b02a273e681818e21048c6992e2",
+    "Hello from macOS Nerves; {~c\"Darwin\", ~c\"arm64\"}; OTP 29; release 1.0.0; boot 03c87af7d0873e978f0b4aeac230f58d"
+  ],
+  "manifest_digests": {
+    "base": "sha256:7cb48a2f302c0ee197bee96368f7143386e4e7790daecba6f84a62f17e05b9bd",
+    "dependency": "sha256:360a53d45d9074709bd4cf8da52f9badbbc8c232fad724edeb88471ee0f869e3",
+    "v1": "sha256:81acfaeba8fbc832404fd322b5ca5b6ba8e7c493311b0aeefe161e97e60c84ef",
+    "v2": "sha256:376dd85f340fbf9a310101fbc1f76e485d48f5c4702fee950b6ee90593fa3a98"
+  }
+}

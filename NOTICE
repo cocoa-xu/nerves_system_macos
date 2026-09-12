@@ -1,0 +1,6 @@
+nerves_system_macos
+Copyright 2026 Cocoa
+
+Runtime inputs are supplied separately. Erlang/OTP builds are available from
+https://github.com/cocoa-xu/otp-build and their OpenSSL dependency from
+https://github.com/cocoa-xu/openssl-build.

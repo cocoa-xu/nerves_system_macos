@@ -2,11 +2,15 @@ defmodule Nerves.System.MacOS.OCI do
   @moduledoc false
   alias Nerves.System.MacOS.{BaseSpec, HTTP}
   @manifest_type "application/vnd.oci.image.manifest.v1+json"
+  @image_config_type "application/vnd.oci.image.config.v1+json"
   @config_type "application/vnd.cirruslabs.tart.config.v1"
   @disk_type "application/vnd.cirruslabs.tart.disk.v2"
   @nvram_type "application/vnd.cirruslabs.tart.nvram.v1"
 
-  def with_mirror(source, root, fun) do
+  @version_label "org.opencontainers.image.version"
+
+  def with_mirror(spec, root, fun) do
+    source = spec["source"]
     {host, repository, digest} = BaseSpec.reference!(source["reference"])
     scheme = if source["insecure"], do: "http", else: "https"
     base = "#{scheme}://#{host}/v2/#{repository}"
@@ -41,26 +45,17 @@ defmodule Nerves.System.MacOS.OCI do
 
     manifest = manifest_path |> File.read!() |> Jason.decode!()
     descriptors = descriptors!(manifest)
-    IO.puts("Downloading #{length(descriptors)} pinned OCI blobs")
+    config = manifest["config"]
+    download_blob!(base, directory, config, options)
+    verify_version!(config, directory, spec["image_version"])
+    remaining = Enum.reject(descriptors, &(&1["digest"] == config["digest"]))
+    IO.puts("Downloading #{length(remaining)} pinned OCI blobs")
 
-    descriptors
+    remaining
     |> Task.async_stream(
       fn descriptor ->
         try do
-          target = Path.join(directory, "v2/base/image/blobs/" <> descriptor["digest"])
-
-          result =
-            HTTP.download(
-              base <> "/blobs/" <> descriptor["digest"],
-              target,
-              Keyword.put(options, :max_bytes, descriptor["size"])
-            )
-
-          unless result.status == 200 and result.size == descriptor["size"] and
-                   "sha256:" <> result.sha256 == descriptor["digest"],
-                 do: raise("OCI blob status, size or SHA-256 does not match")
-
-          :ok
+          download_blob!(base, directory, descriptor, options)
         rescue
           error -> {:error, Exception.message(error)}
         end
@@ -94,13 +89,39 @@ defmodule Nerves.System.MacOS.OCI do
     end
   end
 
+  defp download_blob!(base, directory, descriptor, options) do
+    target = Path.join(directory, "v2/base/image/blobs/" <> descriptor["digest"])
+
+    result =
+      HTTP.download(
+        base <> "/blobs/" <> descriptor["digest"],
+        target,
+        Keyword.put(options, :max_bytes, descriptor["size"])
+      )
+
+    unless result.status == 200 and result.size == descriptor["size"] and
+             "sha256:" <> result.sha256 == descriptor["digest"],
+           do: raise("OCI blob status, size or SHA-256 does not match")
+
+    :ok
+  end
+
+  defp verify_version!(descriptor, directory, expected) do
+    path = Path.join(directory, "v2/base/image/blobs/" <> descriptor["digest"])
+    config = path |> File.read!() |> Jason.decode!()
+    actual = get_in(config, ["config", "Labels", @version_label])
+
+    unless actual == expected,
+      do: raise("OCI image version #{inspect(actual)} does not match #{inspect(expected)}")
+  end
+
   defp token!(challenge, root, options) do
     unless is_binary(challenge) and String.starts_with?(String.downcase(challenge), "bearer "),
       do: raise("The registry must support anonymous Bearer authentication")
 
     fields =
-      Map.new(Regex.scan(~r/([a-z_]+)="([^"]*)"/, challenge), fn [_, key, value] ->
-        {key, value}
+      Map.new(Regex.scan(~r/([a-z_]+)="([^"]*)"/i, challenge), fn [_, key, value] ->
+        {String.downcase(key), value}
       end)
 
     realm = fields |> Map.fetch!("realm") |> URI.parse()
@@ -108,19 +129,25 @@ defmodule Nerves.System.MacOS.OCI do
     url = URI.to_string(%{realm | query: URI.encode_query(query)})
     path = Path.join(root, "token.json")
 
-    result =
-      HTTP.download(
-        url,
-        path,
-        options |> Keyword.put(:headers, []) |> Keyword.put(:max_bytes, 65_536)
-      )
+    try do
+      result =
+        HTTP.download(
+          url,
+          path,
+          options |> Keyword.put(:headers, []) |> Keyword.put(:max_bytes, 65_536)
+        )
 
-    unless result.status == 200, do: raise("Anonymous registry authentication failed")
-    value = path |> File.read!() |> Jason.decode!()
-    File.rm!(path)
-    token = value["token"] || value["access_token"]
-    unless is_binary(token) and token != "", do: raise("The registry returned no anonymous token")
-    token
+      unless result.status == 200, do: raise("Anonymous registry authentication failed")
+      value = path |> File.read!() |> Jason.decode!()
+      token = value["token"] || value["access_token"]
+
+      unless is_binary(token) and token != "",
+        do: raise("The registry returned no anonymous token")
+
+      token
+    after
+      File.rm(path)
+    end
   end
 
   defp descriptors!(manifest) do
@@ -128,6 +155,12 @@ defmodule Nerves.System.MacOS.OCI do
 
     unless manifest["schemaVersion"] == 2 and is_list(layers) and layers != [],
       do: raise("Unsupported OCI manifest")
+
+    unless get_in(manifest, ["config", "mediaType"]) == @image_config_type,
+      do: raise("Unsupported OCI image config")
+
+    unless manifest["config"]["size"] in 1..5_000_000,
+      do: raise("OCI image config exceeds its size limit")
 
     unless Enum.count(layers, &(&1["mediaType"] == @config_type)) == 1 and
              Enum.count(layers, &(&1["mediaType"] == @nvram_type)) == 1 and

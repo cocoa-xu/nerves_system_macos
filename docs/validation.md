@@ -6,6 +6,7 @@ Validated on September 13, 2026, on an Apple M4 Pro Mac mini running macOS 27.0
 | Component | Result |
 | --- | --- |
 | Guest | macOS 26.6.2, build 25G83, arm64 |
+| Base image version | 0.1.0 (`26.6.2-25G83-v0.1.0`) |
 | Runtime input | OTP 29.0.2, ERTS 17.0.2, `arm64-apple-darwin` |
 | OpenSSL reported by crypto | OpenSSL 3.6.3, 9 Jun 2026 |
 | Download | SHA-256 verified; exact extracted OTP version checked |
@@ -20,6 +21,10 @@ The example's NIF reported Darwin/arm64 from inside the guest. Each verified boo
 produced a new application boot ID, while preserving the previous boot records.
 The running release reported ERTS 17.0.2 and OpenSSL 3.6.3 through RPC. Both
 verification boots ended with a clean guest shutdown.
+
+A cold boot exposed an early exit in the launchd readiness check: a missing job
+caused `set -e` to exit before the retry loop could continue. The check now retries
+within its existing 90-second deadline. Both cold boots passed after this fix.
 
 The build and verification required no GUI interaction, screenshots, or OCR.
 They used private Tart homes and new VM names and MAC addresses. Original base
@@ -43,6 +48,10 @@ native hello release with OTP 29.0.2. A second release build reused the system
 artifact and rebuilt the C NIF for the selected deployment target without starting
 a VM or acquiring the base again.
 
+The image version was then added to the specification. A fresh system and native
+hello firmware build passed with version `0.1.0` recorded in the base provenance,
+followed by the two cold boots above.
+
 A 16 MiB test disk exercised the prebuilt provider through a real Tart push and
 import. The test registry required anonymous Bearer authentication. Elixir/OTP
 downloaded and verified the manifest and blobs before Tart imported them from
@@ -50,13 +59,18 @@ loopback. Altering a blob caused a SHA-256 failure, and both paths removed their
 temporary caches. A separate HTTPS check fetched a GHCR token and manifest using
 an explicit PEM CA bundle; it did not download image blobs.
 
+The versioned Tart roundtrip also passed. A mismatched image version was rejected
+after downloading the OCI config, before any disk blobs were requested.
+
 The local builder test checked executable and Git revision pins, rejected modified
 inputs, and removed its temporary output. It did not restore an IPSW. Native-file
 checks accepted a macOS 26 extension for the macOS 26 target and rejected it for
 macOS 15. Only the macOS 26 guest has completed runtime validation.
 
 The temporary selected-system artifact and release were removed after validation.
-The original base VMs and previously verified system and firmware were retained.
+The original base VMs and previously verified system and firmware were retained,
+along with an application-free `0.1.0` base prepared for publication. No base has
+been uploaded to GHCR yet.
 
 ## Layer distribution
 

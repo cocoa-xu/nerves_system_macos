@@ -114,15 +114,10 @@ including logs and filesystem metadata. Its transfer size is not just the size
 of the changed application files. This is a disk-layer experiment, not a
 reproducible package-level filesystem builder.
 
-The registry is a local test fixture, not a production registry implementation.
-Same-host isolated caches validate transfer and reconstruction behavior; they
-do not validate WAN operation or a second physical host. This experiment does
-not implement signed deployment manifests, automatic health-triggered rollback,
-data schema rollback, unattended OTA orchestration, or a general dependency
-recipe interface. The next integration step is to expose pinned dependency
-recipes and layer manifests through the Nerves build platform. Python is used
-to establish the experiment; the intended production control interface is
-Elixir, with some or all orchestration moving into Nerves after validation.
+The registry is a local test fixture. The results cover independent caches on
+one Mac. Production deployment, automatic rollback and a dependency recipe API
+remain unimplemented. The controller currently uses Python; production
+orchestration will move to Elixir and the Nerves build interfaces.
 
 See [Tart's stacked-disk documentation](https://github.com/cirruslabs/tart/blob/main/docs/quick-start.md)
 and [Apple DiskImageKit](https://developer.apple.com/documentation/diskimagekit).

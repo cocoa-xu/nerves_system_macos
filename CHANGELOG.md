@@ -12,3 +12,4 @@
 - Select exact macOS 15, 26 or 27 bases from local, pinned OCI or local build sources.
 - Verify OCI downloads with Elixir and isolate Tart from remote registry credentials.
 - Separate base selections in the Nerves cache and check native deployment targets.
+- Version base image rebuilds independently of macOS and verify their OCI version labels.

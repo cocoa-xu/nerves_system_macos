@@ -5,12 +5,14 @@ defmodule Mix.Tasks.Nerves.Macos.Base do
   Select macOS 15, 26 or 27 and an explicit image source.
 
       mix nerves.macos.base profiles
-      mix nerves.macos.base lock --macos 26 --source local --image DIRECTORY --output base.json
-      mix nerves.macos.base lock --macos 26 --source prebuilt --reference REGISTRY/IMAGE@sha256:DIGEST --output base.json
-      mix nerves.macos.base lock --macos 26 --source build --builder EXECUTABLE --repository DIRECTORY --recipe CONFIG --output base.json
+      mix nerves.macos.base lock --macos 26 --image-version 0.1.0 --source local --image DIRECTORY --output base.json
+      mix nerves.macos.base lock --macos 26 --image-version 0.1.0 --source prebuilt --reference REGISTRY/IMAGE@sha256:DIGEST --output base.json
+      mix nerves.macos.base lock --macos 26 --image-version 0.1.0 --source build --builder EXECUTABLE --repository DIRECTORY --recipe CONFIG --output base.json
       mix nerves.macos.base prepare --spec base.json --output DIRECTORY
+      mix nerves.macos.base tag --spec base.json
 
-  Both --version and --build may override a profile's exact default identity.
+  --image-version identifies the base release independently of macOS.
+  Use --version and --build together to override the selected macOS profile.
   A build source pins a clean local Git checkout and the builder executable.
   Its CLI must accept build vanilla, --config, --repository and --target.
   All output paths must be new. No command publishes images.
@@ -27,6 +29,7 @@ defmodule Mix.Tasks.Nerves.Macos.Base do
       OptionParser.parse!(args,
         strict: [
           macos: :integer,
+          image_version: :string,
           source: :string,
           image: :string,
           reference: :string,
@@ -42,6 +45,7 @@ defmodule Mix.Tasks.Nerves.Macos.Base do
     output = opts |> Keyword.fetch!(:output) |> Path.expand()
     Files.absent!(output)
     profile = opts |> Keyword.fetch!(:macos) |> BaseSpec.profile!()
+    image_version = opts |> Keyword.fetch!(:image_version) |> BaseSpec.image_version!()
 
     if Keyword.has_key?(opts, :version) != Keyword.has_key?(opts, :build),
       do: Mix.raise("Specify both --version and --build when overriding a profile")
@@ -54,6 +58,7 @@ defmodule Mix.Tasks.Nerves.Macos.Base do
     spec =
       BaseSpec.validate!(%{
         "format" => 1,
+        "image_version" => image_version,
         "macos" => %{
           "version" => version,
           "build" => opts[:build] || profile.build,
@@ -74,7 +79,13 @@ defmodule Mix.Tasks.Nerves.Macos.Base do
     Mix.shell().info(BaseImage.prepare(spec, output))
   end
 
-  def run(_), do: Mix.raise("Use profiles, lock or prepare; see mix help nerves.macos.base")
+  def run(["tag" | args]) do
+    {opts, []} = OptionParser.parse!(args, strict: [spec: :string])
+    spec = opts |> Keyword.fetch!(:spec) |> BaseSpec.read!()
+    Mix.shell().info(BaseSpec.tag(spec))
+  end
+
+  def run(_), do: Mix.raise("Use profiles, lock, prepare or tag; see mix help nerves.macos.base")
 
   defp source!(opts) do
     case Keyword.fetch!(opts, :source) do

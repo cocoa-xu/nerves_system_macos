@@ -28,12 +28,35 @@ minimum macOS version.
 No base images have been published yet. You can use a local base now; the prebuilt
 option accepts a public Tart image once one is available.
 
+## Image versions
+
+Each base also has an `image_version`, independent of macOS and the Mix package
+version. For example, macOS `26.6.2`, Apple build `25G83`, and image version `0.1.0`
+produce the tag `26.6.2-25G83-v0.1.0`.
+
+Assign a new image version whenever a published base is rebuilt. A setup fix can
+be `0.1.1` even if the macOS build stays the same. Keep the old tag and digest so
+existing projects can continue using it. Use semantic versions such as `0.1.0`
+or `0.2.0-rc.1`, without `+` build metadata.
+
+Pass `--image-version` when creating a specification. It is required, saved in
+the artifact metadata, and included in the Nerves checksum and base fingerprint.
+Changing it selects a new cache entry. Print the release tag with:
+
+```sh
+mix nerves.macos.base tag --spec base.json
+```
+
+Prebuilt images must carry the same version in their OCI
+`org.opencontainers.image.version` label. The downloader checks this before
+requesting disk blobs. The manifest digest still identifies the exact image bytes.
+
 ## Download a prebuilt base
 
 Use the image's manifest digest, not a tag:
 
 ```sh
-mix nerves.macos.base lock --macos 26 --source prebuilt \
+mix nerves.macos.base lock --macos 26 --image-version 0.1.0 --source prebuilt \
   --reference 'ghcr.io/OWNER/IMAGE@sha256:MANIFEST_DIGEST' \
   --output base.json
 ```
@@ -66,7 +89,7 @@ Use a local builder if you want to restore Apple's IPSW and run the initial setu
 yourself. This option requires a reviewed builder checkout and its compiled CLI:
 
 ```sh
-mix nerves.macos.base lock --macos 26 --source build \
+mix nerves.macos.base lock --macos 26 --image-version 0.1.0 --source build \
   --builder /absolute/path/to/builder \
   --repository /absolute/path/to/checkout \
   --recipe config/selected-release.env \
@@ -94,7 +117,7 @@ Run `mix nerves.macos.base prepare` as above to build and verify the base.
 ## Use an existing local base
 
 ```sh
-mix nerves.macos.base lock --macos 26 --source local \
+mix nerves.macos.base lock --macos 26 --image-version 0.1.0 --source local \
   --image /absolute/path/to/stopped/base.tart --output base.json
 ```
 

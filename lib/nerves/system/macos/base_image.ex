@@ -1,7 +1,5 @@
 defmodule Nerves.System.MacOS.BaseImage do
-  @moduledoc """
-  Downloads, restores and verifies macOS bases.
-  """
+  @moduledoc "Downloads, restores and verifies macOS bases."
   alias Nerves.System.MacOS.{BaseSpec, Command, Files, OCI, VM}
 
   def with_source(spec, root, work_root, fun) do
@@ -10,7 +8,7 @@ defmodule Nerves.System.MacOS.BaseImage do
     source = spec["source"]
 
     if source["type"] == "local" do
-      image = BaseSpec.path(source["path"], root)
+      image = Path.expand(source["path"], root)
       VM.validate!(image)
 
       for file <- BaseSpec.files(),
@@ -19,7 +17,7 @@ defmodule Nerves.System.MacOS.BaseImage do
       fun.(image)
     else
       VM.with_home(work_root, fn vm ->
-        acquire(source, root, vm)
+        acquire(spec, root, vm)
         VM.validate!(vm.path)
         fun.(vm.path)
       end)
@@ -52,6 +50,7 @@ defmodule Nerves.System.MacOS.BaseImage do
   def provenance(spec),
     do: %{
       "format" => 1,
+      "image_version" => spec["image_version"],
       "fingerprint" => BaseSpec.fingerprint(spec),
       "macos" => spec["macos"],
       "source" => spec["source"]["type"]
@@ -92,8 +91,8 @@ defmodule Nerves.System.MacOS.BaseImage do
     :ok
   end
 
-  defp acquire(%{"type" => "prebuilt"} = source, _root, vm) do
-    OCI.with_mirror(source, vm.session, fn reference ->
+  defp acquire(%{"source" => %{"type" => "prebuilt"}} = spec, _root, vm) do
+    OCI.with_mirror(spec, vm.session, fn reference ->
       {host, _, _} = BaseSpec.reference!(reference)
 
       env =
@@ -111,9 +110,9 @@ defmodule Nerves.System.MacOS.BaseImage do
     end)
   end
 
-  defp acquire(%{"type" => "build"} = source, root, vm) do
-    executable = BaseSpec.path(source["executable"], root)
-    repository = BaseSpec.path(source["repository"], root)
+  defp acquire(%{"source" => %{"type" => "build"} = source}, root, vm) do
+    executable = Path.expand(source["executable"], root)
+    repository = Path.expand(source["repository"], root)
     verify_digest!(executable, source["sha256"])
     verify_checkout!(repository, source["revision"])
 

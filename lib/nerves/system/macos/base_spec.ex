@@ -1,7 +1,5 @@
 defmodule Nerves.System.MacOS.BaseSpec do
-  @moduledoc """
-  The macOS version, build and source recorded in a base specification.
-  """
+  @moduledoc "The image version, macOS build and source recorded in a base specification."
   alias Nerves.System.MacOS.Files
 
   @files ~w(config.json disk.img nvram.bin)
@@ -24,8 +22,9 @@ defmodule Nerves.System.MacOS.BaseSpec do
   end
 
   def validate!(spec) when is_map(spec) do
-    keys!(spec, ~w(format macos source))
+    keys!(spec, ~w(format image_version macos source))
     unless spec["format"] == 1, do: raise(ArgumentError, "Unsupported base specification")
+    image_version!(string!(spec, "image_version"))
     os = spec["macos"]
     keys!(os, ~w(version build architecture))
     version = string!(os, "version")
@@ -37,6 +36,7 @@ defmodule Nerves.System.MacOS.BaseSpec do
       do: raise(ArgumentError, "An exact Apple build identifier is required")
 
     unless os["architecture"] == "arm64", do: raise(ArgumentError, "Only arm64 is supported")
+    tag(spec)
     source!(spec["source"])
     spec
   end
@@ -54,8 +54,22 @@ defmodule Nerves.System.MacOS.BaseSpec do
   def major(spec),
     do: spec["macos"]["version"] |> String.split(".") |> hd() |> String.to_integer()
 
-  def path(value, root), do: Path.expand(value, root)
+  def tag(spec) do
+    tag = "#{spec["macos"]["version"]}-#{spec["macos"]["build"]}-v#{spec["image_version"]}"
+    if byte_size(tag) > 128, do: raise(ArgumentError, "The image tag must not exceed 128 bytes")
+    tag
+  end
+
   def files, do: @files
+
+  def image_version!(value) when is_binary(value) do
+    case Version.parse(value) do
+      {:ok, %Version{build: nil}} -> value
+      _ -> raise ArgumentError, "image_version must be a semantic version without build metadata"
+    end
+  end
+
+  def image_version!(_), do: raise(ArgumentError, "image_version must be a semantic version")
 
   def digest!(value) do
     unless is_binary(value) and Regex.match?(~r/\A[a-f0-9]{64}\z/, value),

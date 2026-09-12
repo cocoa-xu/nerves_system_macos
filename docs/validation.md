@@ -15,7 +15,7 @@ Validated on September 13, 2026, on an Apple M4 Pro Mac mini running macOS 27.0
 | Boot persistence | Two cold boots of an independent firmware copy passed |
 | Guest settings | admin account/full name/password, en_US, en-US, U.S. keyboard |
 | Static checks | Formatting, compilation without warnings, Bash syntax |
-| Automated tests | Seven ExUnit tests and eight Python tests passed |
+| Automated tests | Eighteen ExUnit tests and eight Python tests passed |
 
 The example's NIF reported Darwin/arm64 from inside the guest. Each verified boot
 produced a new application boot ID, while preserving the previous boot records.
@@ -31,9 +31,34 @@ The system's sparse archive writer was checked by extracting a sparse test disk
 and checking its logical size and compressed archive size. A full macOS system
 archive was not compressed and redistributed during this validation.
 
-This validation covers the macOS 26 application workflow. A macOS 27 guest,
-VirtualBuddy import, physical Mac installation, production OTA updates, and Linux-specific
-Nerves runtime packages are outside these results.
+This validation covers the macOS 26 application workflow. macOS 15 and 27 guest
+runtimes, VirtualBuddy import, physical Mac installation, production OTA updates,
+and Linux-specific Nerves runtime packages are outside these results.
+
+## Base selection
+
+The `macos26` target built a system from a local base pinned by SHA-256. The build
+checked macOS 26.6.2/25G83, the admin account, English/U.S. settings, and the absence
+of a Nerves application. The guest shut down cleanly. Nerves then assembled the
+native hello release with OTP 29.0.2. A second release build reused the system
+artifact and rebuilt the C NIF for the selected deployment target without starting
+a VM or acquiring the base again.
+
+A 16 MiB test disk exercised the prebuilt provider through a real Tart push and
+import. The test registry required anonymous Bearer authentication. Elixir/OTP
+downloaded and verified the manifest and blobs before Tart imported them from
+loopback. Altering a blob caused a SHA-256 failure, and both paths removed their
+temporary caches. A separate HTTPS check fetched a GHCR token and manifest using
+an explicit PEM CA bundle; it did not download image blobs.
+
+The local builder test checked executable and Git revision pins, rejected modified
+inputs, and removed its temporary output. It did not restore an IPSW. Native-file
+checks accepted a macOS 26 extension for the macOS 26 target and rejected it for
+macOS 15. Selection and cache tests cover all three majors; they do not replace
+guest boot tests.
+
+The temporary selected-system artifact and release were removed after validation.
+The original base VMs and previously verified system and firmware were retained.
 
 ## Layer distribution
 

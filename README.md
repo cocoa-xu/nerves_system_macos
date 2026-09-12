@@ -1,25 +1,28 @@
 # nerves_system_macos
 
-A macOS system build platform for [Nerves](https://nerves-project.org), targeting
-Apple silicon virtual machines. It implements the Nerves system package and
-artifact build interfaces, exports a native Darwin SDK environment, and installs
-Elixir releases as launchd services.
+Nerves System macOS provides the common logic for building
+[Nerves](https://nerves-project.org) systems for Apple silicon virtual machines.
+It uses Tart and OpenSSH to prepare VM images, supplies the Darwin SDK environment
+for native compilation, and installs Elixir releases as launchd services.
 
-System packages depend on this platform in the same role that Linux system
-packages depend on `nerves_system_br`. The macOS platform uses a prepared macOS
-disk, a pinned Erlang/OTP runtime, Tart, and OpenSSH. It does not build macOS from
-source or replace Apple's boot and update mechanisms.
+System packages use this platform in the same way that Linux system packages use
+`nerves_system_br`. Start with the [example system](examples/system) and
+[application](examples/hello), or read about [selecting a base](docs/base-images.md)
+to choose macOS 15, 26 or 27. The macOS 26 application workflow has been tested;
+macOS 15 and 27 runtime validation is still pending.
 
 ## Requirements
 
-- An Apple silicon Mac with macOS 26 or later and an APFS build volume.
+- An Apple silicon Mac with an APFS build volume. Base specifications require
+  a host macOS major at least as new as the selected guest (15, 26 or 27).
 - Xcode or Command Line Tools with an SDK supporting the guest deployment target.
 - Elixir 1.16 or later, with the same OTP major version as the selected runtime.
 - Nerves 1.15 and `nerves_bootstrap`.
 - Tart 2.36, Python 3.9 or later, GNU tar (`gtar`), and `sshpass` 1.10.
-- A stopped, standalone raw macOS VM bundle containing `config.json`, `disk.img`,
-  and `nvram.bin`. The configuration must include its hardware model and machine
-  identifier. Preserve these files together.
+- A prepared macOS base, supplied locally, downloaded by digest, or restored by
+  a local builder. A local base is a stopped raw VM bundle containing
+  `config.json`, `disk.img`, and `nvram.bin`. Keep these files together; the
+  configuration includes the VM's hardware model and machine identifier.
 
 The guest must have completed Setup Assistant, enabled SSH password login, and
 configured passwordless sudo. The development account, full name, and password
@@ -111,6 +114,9 @@ specific acceptance tests for your own services.
 
 ## Define a system package
 
+For macOS 15, 26 or 27 with a prebuilt, local or locally restored base, see
+[selecting a base](docs/base-images.md). No base images have been published yet.
+
 See [`examples/system`](examples/system). The essential package configuration is:
 
 ```elixir
@@ -163,8 +169,8 @@ different password, and set the matching `:password` in its platform config.
 
 This is an experimental macOS Nerves platform. It provides system artifacts,
 native compilation, bootable application VMs, launchd supervision, and cold-boot
-verification. It starts from a prepared macOS base; IPSW restoration and Setup
-Assistant automation are outside this package.
+verification. It starts from a prepared macOS base. The local build option calls
+an external builder for IPSW restoration and Setup Assistant automation.
 
 Linux-specific `erlinit`, fwup images, `firmware.burn`, `Nerves.Runtime`,
 `nerves_system_shell`, A/B updates, and Linux hardware drivers are not macOS
@@ -179,6 +185,10 @@ measured OCI downloads, and application data shared across version changes.
 Its Python controller is an experiment; the intended integration uses Elixir
 and the Nerves build interfaces.
 
+Elixir runs on the host and controls the guest during builds and verification.
+A public API for managing long-running VMs and arbitrary guest applications is
+planned. The current firmware task installs a Mix release.
+
 ## Development
 
 ```sh
@@ -189,6 +199,7 @@ The tests cover configuration, command deadlines and descendant cleanup,
 overwrite and cleanup guards, native runtime portability, archive extraction,
 checksums, and sparse archives. See [validation results](docs/validation.md).
 Full VM verification requires the prepared guest and pinned runtime described above.
+For a dedicated base-image build machine, see [release runners](docs/runner-security.md).
 
 The platform source is licensed under Apache-2.0. macOS, Erlang/OTP, OpenSSL,
 and application dependencies retain their respective upstream licenses.

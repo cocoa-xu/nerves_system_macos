@@ -9,3 +9,6 @@
 - Include an example system and an application with a native extension.
 - Support shared application data during VM provisioning.
 - Validate layered OCI installation, updates and rollback on a macOS 27 host.
+- Select exact macOS 15, 26 or 27 bases from local, pinned OCI or local build sources.
+- Verify OCI downloads with Elixir and isolate Tart from remote registry credentials.
+- Separate base selections in the Nerves cache and check native deployment targets.

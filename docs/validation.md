@@ -15,7 +15,6 @@ Validated on September 13, 2026, on an Apple M4 Pro Mac mini running macOS 27.0
 | Boot persistence | Two cold boots of an independent firmware copy passed |
 | Guest settings | admin account/full name/password, en_US, en-US, U.S. keyboard |
 | Static checks | Formatting, compilation without warnings, Bash syntax |
-| Automated tests | Eighteen ExUnit tests and eight Python tests passed |
 
 The example's NIF reported Darwin/arm64 from inside the guest. Each verified boot
 produced a new application boot ID, while preserving the previous boot records.
@@ -54,8 +53,7 @@ an explicit PEM CA bundle; it did not download image blobs.
 The local builder test checked executable and Git revision pins, rejected modified
 inputs, and removed its temporary output. It did not restore an IPSW. Native-file
 checks accepted a macOS 26 extension for the macOS 26 target and rejected it for
-macOS 15. Selection and cache tests cover all three majors; they do not replace
-guest boot tests.
+macOS 15. Only the macOS 26 guest has completed runtime validation.
 
 The temporary selected-system artifact and release were removed after validation.
 The original base VMs and previously verified system and firmware were retained.

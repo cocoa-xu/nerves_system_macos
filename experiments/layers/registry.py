@@ -11,7 +11,7 @@ from urllib.parse import parse_qs, urlsplit
 class Registry(ThreadingHTTPServer):
     daemon_threads = True
 
-    def __init__(self, root, port=0, resume=False, require_bearer=False):
+    def __init__(self, root, port=0, resume=False):
         self.root = pathlib.Path(root)
         if resume:
             if not (self.root / ".layer-experiment").is_file():
@@ -22,7 +22,6 @@ class Registry(ThreadingHTTPServer):
             for name in ("blobs", "manifests", "uploads"):
                 (self.root / name).mkdir()
         self.events = []
-        self.require_bearer = require_bearer
         self.events_lock = threading.Lock()
         super().__init__(("127.0.0.1", port), Handler)
 
@@ -52,14 +51,6 @@ class Handler(BaseHTTPRequestHandler):
 
     def read(self):
         path = urlsplit(self.path).path
-        if self.server.require_bearer:
-            if path == "/token":
-                if self.headers.get("Authorization"):
-                    return self.respond(403)
-                return self.respond(200, b'{"token":"fixture-token"}')
-            if self.headers.get("Authorization") != "Bearer fixture-token":
-                challenge = f'Bearer realm="http://127.0.0.1:{self.server.server_port}/token",service="fixture",scope="repository:test/base:pull"'
-                return self.respond(401, headers={"WWW-Authenticate": challenge})
         if path == "/v2/":
             return self.respond(200, b"{}")
         match = re.fullmatch(r"/v2/([a-z0-9_/-]+)/(blobs|manifests)/([a-zA-Z0-9_:.-]+)", path)

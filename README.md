@@ -195,10 +195,9 @@ planned. The current firmware task installs a Mix release.
 make validate
 ```
 
-The tests cover configuration, command deadlines and descendant cleanup,
-overwrite and cleanup guards, native runtime portability, archive extraction,
-checksums, and sparse archives. See [validation results](docs/validation.md).
-Full VM verification requires the prepared guest and pinned runtime described above.
+This checks formatting, compilation and shell syntax. For a smoke test, build the
+example with `mix firmware` and run `mix nerves.macos.verify` on the result. It
+checks the application through two cold boots. See [validation results](docs/validation.md).
 For a dedicated base-image build machine, see [release runners](docs/runner-security.md).
 
 The platform source is licensed under Apache-2.0. macOS, Erlang/OTP, OpenSSL,

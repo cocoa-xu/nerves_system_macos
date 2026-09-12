@@ -35,59 +35,73 @@ defmodule Nerves.System.MacOS.HTTP do
       for {key, value} <- options[:headers] || [], do: {to_charlist(key), to_charlist(value)}
 
     limit = Keyword.fetch!(options, :max_bytes)
+    unless is_integer(limit) and limit > 0, do: raise("Download size limit must be positive")
     File.mkdir_p!(Path.dirname(path))
+    temporary = path <> ".download-#{System.unique_integer([:positive])}"
 
-    result =
-      File.open!(path, [:write, :binary], fn file ->
-        {:ok, request} =
-          :httpc.request(
-            :get,
-            {to_charlist(url), headers},
-            [
-              ssl: ssl,
-              timeout: timeout,
-              connect_timeout: min(timeout, 15_000),
-              autoredirect: false
-            ],
-            sync: false,
-            stream: {:self, :once},
-            max_body_size: limit,
-            # Separate connections keep concurrent requests' body limits independent.
-            socket_opts: [nodelay: true]
-          )
+    try do
+      result = request(url, temporary, headers, ssl, timeout, deadline, limit)
 
-        try do
-          receive_body(request, file, deadline, limit, nil, 0, :crypto.hash_init(:sha256))
-        after
-          :httpc.cancel_request(request)
-        end
-      end)
+      case result do
+        %{status: 200} ->
+          File.rename!(temporary, path)
+          result
 
-    case result do
-      %{status: status, headers: headers} when status in [301, 302, 303, 307, 308] ->
-        if redirects == 0, do: raise("Too many download redirects")
-        next = URI.merge(url, Map.fetch!(headers, "location")) |> URI.to_string()
-        next_uri = URI.parse(next)
+        %{status: status, headers: response_headers}
+        when status in [301, 302, 303, 307, 308] ->
+          if redirects == 0, do: raise("Too many download redirects")
+          next = URI.merge(url, Map.fetch!(response_headers, "location")) |> URI.to_string()
+          next_uri = URI.parse(next)
 
-        if uri.scheme == "https" and next_uri.scheme != "https",
-          do: raise("Refusing an HTTPS downgrade")
+          if uri.scheme == "https" and next_uri.scheme != "https",
+            do: raise("Refusing an HTTPS downgrade")
 
-        options =
-          if {uri.scheme, uri.host, uri.port} == {next_uri.scheme, next_uri.host, next_uri.port},
-            do: options,
-            else:
-              Keyword.update(
-                options,
-                :headers,
-                [],
-                &Enum.reject(&1, fn {key, _} -> String.downcase(key) == "authorization" end)
-              )
+          options =
+            if {uri.scheme, uri.host, uri.port} == {next_uri.scheme, next_uri.host, next_uri.port},
+              do: options,
+              else:
+                Keyword.update(
+                  options,
+                  :headers,
+                  [],
+                  &Enum.reject(&1, fn {key, _} -> String.downcase(key) == "authorization" end)
+                )
 
-        download(next, path, Keyword.put(options, :deadline, deadline), redirects - 1)
+          download(next, path, Keyword.put(options, :deadline, deadline), redirects - 1)
 
-      _ ->
-        result
+        _ ->
+          result
+      end
+    after
+      File.rm(temporary)
     end
+  end
+
+  defp request(url, path, headers, ssl, timeout, deadline, limit) do
+    File.open!(path, [:write, :binary], fn file ->
+      {:ok, request} =
+        :httpc.request(
+          :get,
+          {to_charlist(url), headers},
+          [
+            ssl: ssl,
+            timeout: timeout,
+            connect_timeout: min(timeout, 15_000),
+            autoredirect: false
+          ],
+          sync: false,
+          stream: {:self, :once},
+          max_body_size: limit,
+          # Separate connections keep concurrent requests' body limits independent.
+          socket_opts: [nodelay: true]
+        )
+
+      try do
+        receive_body(request, file, deadline, limit, nil, 0, :crypto.hash_init(:sha256))
+      after
+        :httpc.cancel_request(request)
+      end
+    end)
   end
 
   defp receive_body(request, file, deadline, limit, handler, size, digest) do

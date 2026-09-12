@@ -1,6 +1,6 @@
 defmodule Nerves.System.MacOS.Artifact do
   @moduledoc false
-  alias Nerves.System.MacOS.{Command, Files, Runtime, VM}
+  alias Nerves.System.MacOS.{BaseImage, Command, Files, Runtime, VM}
   @manifest "nerves-macos.json"
 
   def build(config, destination, _options \\ []) do
@@ -10,14 +10,22 @@ defmodule Nerves.System.MacOS.Artifact do
     File.mkdir_p!(staging)
 
     try do
-      runtime = Runtime.stage(config.otp_root, Path.join(staging, "runtime"), config.otp_version)
+      runtime =
+        Runtime.stage(
+          config.otp_root,
+          Path.join(staging, "runtime"),
+          config.otp_version,
+          config.macos_version
+        )
 
-      VM.with_copy(config.base_image, Path.dirname(destination), fn vm ->
-        VM.provision(vm, config, destination <> ".log")
-        VM.export(vm, Path.join(staging, "system.tart"))
+      with_base(config, Path.dirname(destination), fn image ->
+        VM.with_copy(image, Path.dirname(destination), fn vm ->
+          VM.verify_base(vm, config, destination <> ".log")
+          VM.export(vm, Path.join(staging, "system.tart"))
+        end)
       end)
 
-      Files.write_json(Path.join(staging, @manifest), %{
+      metadata = %{
         "format" => 1,
         "platform" => "macos",
         "architecture" => "arm64",
@@ -27,13 +35,25 @@ defmodule Nerves.System.MacOS.Artifact do
         "openssl" => runtime.openssl,
         "erts_version" => runtime.erts_version,
         "username" => config.username
-      })
+      }
+
+      metadata =
+        if config.base_spec,
+          do: Map.put(metadata, "base", BaseImage.provenance(config.base_spec)),
+          else: metadata
+
+      Files.write_json(Path.join(staging, @manifest), metadata)
 
       File.rename!(staging, destination)
     after
       File.rm_rf!(staging)
     end
   end
+
+  defp with_base(%{base_spec: nil} = config, _work_root, fun), do: fun.(config.base_image)
+
+  defp with_base(config, work_root, fun),
+    do: BaseImage.with_source(config.base_spec, config.base_root, work_root, fun)
 
   def read!(path) do
     manifest = Path.join(path, @manifest)

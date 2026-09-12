@@ -22,7 +22,7 @@ defmodule Nerves.System.MacOS.Release do
     unless to_string(release.erts_version) == system["erts_version"],
       do: raise("The release must include the system artifact's ERTS")
 
-    Runtime.validate!(release.path)
+    Runtime.validate!(release.path, system["macos_version"])
 
     applications =
       for {app, mode} <- release.boot_scripts[:start], mode in [:permanent, :transient], do: app

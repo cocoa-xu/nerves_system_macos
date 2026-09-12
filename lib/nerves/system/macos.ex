@@ -10,13 +10,27 @@ defmodule Nerves.System.MacOS do
   @behaviour Nerves.Package.Platform
   @behaviour Nerves.Artifact.BuildRunner
 
-  alias Nerves.System.MacOS.{Artifact, Config, Environment}
+  alias Nerves.System.MacOS.{Artifact, BaseSpec, Config, Environment}
 
   @impl true
   def bootstrap(_platform) do
     case System.get_env("NERVES_SYSTEM") do
-      nil -> {:error, "NERVES_SYSTEM is not set"}
-      path -> Environment.activate(path)
+      nil ->
+        {:error, "NERVES_SYSTEM is not set"}
+
+      path ->
+        if package = Nerves.Env.system() do
+          if package.platform == __MODULE__ do
+            if spec = Config.validate_package!(package) do
+              metadata = Artifact.read!(path)
+
+              unless get_in(metadata, ["base", "fingerprint"]) == BaseSpec.fingerprint(spec),
+                do: raise("The cached system does not match the selected base specification")
+            end
+          end
+        end
+
+        Environment.activate(path)
     end
   end
 
@@ -25,13 +39,34 @@ defmodule Nerves.System.MacOS do
     protect(fn ->
       config = Config.new!(package.config[:platform_config] || [], package.path)
       path = build_path_link(package)
-      Artifact.build(config, path, options)
+
+      if File.exists?(path) do
+        checksum = Path.join(path, "CHECKSUM")
+
+        unless File.regular?(checksum) and
+                 String.trim(File.read!(checksum)) == Nerves.Artifact.checksum(package),
+               do:
+                 raise(
+                   "An existing system artifact has no matching checksum; clean it explicitly before rebuilding"
+                 )
+
+        Artifact.read!(path)
+      else
+        Artifact.build(config, path, options)
+      end
+
       {:ok, path}
     end)
   end
 
   @impl true
-  def build_path_link(package), do: Nerves.Artifact.build_path(package)
+  def build_path_link(package) do
+    path = Nerves.Artifact.build_path(package)
+
+    if Config.validate_package!(package),
+      do: path <> "-" <> String.downcase(Nerves.Artifact.checksum(package)),
+      else: path
+  end
 
   @impl true
   def archive(package, _toolchain, options) do

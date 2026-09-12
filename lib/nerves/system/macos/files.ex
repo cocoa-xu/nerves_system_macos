@@ -28,6 +28,13 @@ defmodule Nerves.System.MacOS.Files do
     File.write!(path, Jason.encode_to_iodata!(value, pretty: true))
   end
 
+  def sha256(path) do
+    regular!(path)
+
+    Command.run!("/usr/bin/shasum", ["-a", "256", "--", path], timeout: 300_000)
+    |> String.slice(0, 64)
+  end
+
   def host! do
     unless :os.type() == {:unix, :darwin}, do: raise("System builds require macOS")
 

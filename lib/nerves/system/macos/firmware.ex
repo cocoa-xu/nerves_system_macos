@@ -45,7 +45,7 @@ defmodule Nerves.System.MacOS.Firmware do
     unless Regex.match?(~r/^[a-z][a-z0-9_]*$/, release_metadata["name"]),
       do: raise("Invalid release name")
 
-    Runtime.validate!(release)
+    Runtime.validate!(release, metadata["macos_version"])
 
     config =
       Config.new!(

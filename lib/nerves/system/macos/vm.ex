@@ -30,18 +30,14 @@ defmodule Nerves.System.MacOS.VM do
 
   def with_copy(source, work_root, fun) do
     validate!(source)
-    session = Path.join(work_root, "session-" <> Files.unique())
-    name = "nerves-macos-" <> Files.unique()
-    home = Path.join(session, "tart")
-    vm = Path.join([home, "vms", name])
-    File.mkdir_p!(vm)
-    env = %{"TART_HOME" => home, "TART_NO_AUTO_PRUNE" => "1", "CI" => "true"}
 
-    try do
+    with_home(work_root, fn vm ->
+      File.mkdir_p!(vm.path)
+
       for file <- ~w(config.json disk.img nvram.bin),
-          do: Files.clone(Path.join(source, file), Path.join(vm, file))
+          do: Files.clone(Path.join(source, file), Path.join(vm.path, file))
 
-      config_path = Path.join(vm, "config.json")
+      config_path = Path.join(vm.path, "config.json")
       config = config_path |> File.read!() |> Jason.decode!()
 
       mac =
@@ -56,13 +52,31 @@ defmodule Nerves.System.MacOS.VM do
         )
 
       Files.write_json(config_path, Map.put(config, "macAddress", mac))
+      fun.(vm)
+    end)
+  end
 
+  def with_home(work_root, fun) do
+    session = Path.join(work_root, "session-" <> Files.unique())
+    name = "nerves-macos-" <> Files.unique()
+    home = Path.join(session, "tart")
+    vm = Path.join([home, "vms", name])
+    File.mkdir_p!(Path.dirname(vm))
+    env = %{"TART_HOME" => home, "TART_NO_AUTO_PRUNE" => "1", "CI" => "true"}
+
+    try do
       fun.(%{name: name, path: vm, home: home, env: env, session: session})
     after
-      Command.run!("tart", ["stop", name], env: env, timeout: 20_000, accept: [2])
+      if File.dir?(vm),
+        do: Command.run!("tart", ["stop", name], env: env, timeout: 20_000, accept: [2])
+
       if File.exists?(Path.join(vm, "disk.img")), do: closed!(Path.join(vm, "disk.img"))
       File.rm_rf!(session)
     end
+  end
+
+  def verify_base(vm, config, log) do
+    run(vm, config, log, File.read!(Files.priv("guest/verify-base.sh")), nil)
   end
 
   def provision(vm, config, log, release \\ nil) do

@@ -1,9 +1,12 @@
 defmodule Nerves.System.MacOS.Config do
   @moduledoc false
+  alias Nerves.System.MacOS.BaseSpec
 
   @enforce_keys [:base_image, :macos_version, :macos_build, :otp_root, :otp_version]
   defstruct [
     :base_image,
+    :base_spec,
+    :base_root,
     :macos_version,
     :macos_build,
     :otp_root,
@@ -15,6 +18,7 @@ defmodule Nerves.System.MacOS.Config do
   def new!(options, root) when is_list(options) do
     allowed = [
       :base_image,
+      :base_spec,
       :macos_version,
       :macos_build,
       :otp_root,
@@ -26,10 +30,14 @@ defmodule Nerves.System.MacOS.Config do
     unknown = Keyword.keys(options) -- allowed
     if unknown != [], do: raise(ArgumentError, "Unknown platform options: #{inspect(unknown)}")
 
+    {base_image, spec, base_root, version, build} = base!(options, root)
+
     config = %__MODULE__{
-      base_image: Path.expand(required!(options, :base_image), root),
-      macos_version: required!(options, :macos_version),
-      macos_build: required!(options, :macos_build),
+      base_image: base_image,
+      base_spec: spec,
+      base_root: base_root,
+      macos_version: version,
+      macos_build: build,
       otp_root: Path.expand(required!(options, :otp_root), root),
       otp_version: required!(options, :otp_version),
       username: options[:username] || "admin",
@@ -52,6 +60,40 @@ defmodule Nerves.System.MacOS.Config do
       do: raise(ArgumentError, "Guest password must not be empty")
 
     config
+  end
+
+  def validate_package!(package) do
+    if file = package.config[:platform_config][:base_spec] do
+      path = Path.expand(file, package.path)
+      inputs = Enum.map(package.config[:checksum] || [], &Path.expand(&1, package.path))
+
+      unless path in inputs,
+        do:
+          raise(
+            ArgumentError,
+            "The base specification must be explicitly listed in the Nerves package checksum"
+          )
+
+      BaseSpec.read!(path)
+    end
+  end
+
+  defp base!(options, root) do
+    if file = options[:base_spec] do
+      if Enum.any?([:base_image, :macos_version, :macos_build], &Keyword.has_key?(options, &1)),
+        do: raise(ArgumentError, "base_spec replaces base_image, macos_version and macos_build")
+
+      if options[:username] not in [nil, "admin"] or options[:password] not in [nil, "admin"],
+        do:
+          raise(ArgumentError, "Published base specifications use the admin development account")
+
+      path = Path.expand(file, root)
+      spec = BaseSpec.read!(path)
+      {nil, spec, Path.dirname(path), spec["macos"]["version"], spec["macos"]["build"]}
+    else
+      {Path.expand(required!(options, :base_image), root), nil, nil,
+       required!(options, :macos_version), required!(options, :macos_build)}
+    end
   end
 
   defp required!(options, key) do

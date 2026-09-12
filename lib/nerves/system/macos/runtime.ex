@@ -2,7 +2,7 @@ defmodule Nerves.System.MacOS.Runtime do
   @moduledoc false
   alias Nerves.System.MacOS.{Command, Files}
 
-  def stage(source, destination, expected_version) do
+  def stage(source, destination, expected_version, macos_version \\ nil) do
     [erts] = Path.wildcard(Path.join(source, "erts-*"))
     [version_file] = Path.wildcard(Path.join(source, "releases/*/OTP_VERSION"))
     otp_version = version_file |> File.read!() |> String.trim()
@@ -14,7 +14,7 @@ defmodule Nerves.System.MacOS.Runtime do
       do: raise("The system OTP major version must match the host compiler")
 
     Files.clone(source, destination)
-    validate!(destination)
+    validate!(destination, macos_version)
 
     openssl =
       Command.run!(
@@ -36,7 +36,11 @@ defmodule Nerves.System.MacOS.Runtime do
     }
   end
 
-  def validate!(path) do
-    Command.run!("python3", [Files.priv("scripts/validate-native.py"), path], timeout: 300_000)
+  def validate!(path, macos_version \\ nil) do
+    args =
+      [Files.priv("scripts/validate-native.py"), path] ++
+        if(macos_version, do: [macos_version], else: [])
+
+    Command.run!("python3", args, timeout: 300_000)
   end
 end

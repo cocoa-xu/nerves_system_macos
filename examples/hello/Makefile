@@ -1,8 +1,8 @@
-.PHONY: all clean
+.PHONY: all clean force
 
 all: priv/hello_native.so
 
-priv/hello_native.so: c_src/hello_native.c
+priv/hello_native.so: c_src/hello_native.c force
 	@test -n "$(ERTS_DIR)" -a -n "$(SDKROOT)" || (echo 'Build with MIX_TARGET=macos and a Nerves system artifact'; exit 1)
 	mkdir -p priv
 	$(CC) -O2 -Wall -Wextra -Werror -arch arm64 -isysroot "$(SDKROOT)" \
@@ -11,3 +11,5 @@ priv/hello_native.so: c_src/hello_native.c
 
 clean:
 	rm -f priv/hello_native.so
+
+force:

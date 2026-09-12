@@ -11,3 +11,4 @@ erl_crash.dump
 /examples/*/mix.lock
 /examples/*/priv/*.so
 __pycache__/
+/examples/selectable_system/bases/*.json

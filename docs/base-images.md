@@ -28,6 +28,23 @@ minimum macOS version.
 No base images have been published yet. You can use a local base now; the prebuilt
 option accepts a public Tart image once one is available.
 
+## Tart compatibility
+
+Bases use Tart's standalone raw VM format and OCI media types. Tart can clone
+and run them without Nerves, and Packer's `tart-cli` builder can provision them
+over SSH with `admin` / `admin`.
+
+This is the same VM and registry format used by
+[Cirrus's macOS templates](https://github.com/cirruslabs/macos-image-templates).
+Our blank base corresponds to their `vanilla` variant. Their `base` and `xcode`
+variants include additional tools; recipes that need those tools must install
+them. Package names, tags and provisioning interfaces are separate.
+
+Importing another Tart image as a Nerves base also requires the exact macOS
+identity, account and English/U.S. settings described here. Prebuilt acquisition
+checks the image version label before downloading the disk, then boots a copy
+to verify the guest. A shared file format alone does not satisfy these checks.
+
 ## Image versions
 
 Each base also has an `image_version`, independent of macOS and the Mix package

@@ -1,35 +1,71 @@
 defmodule Nerves.System.MacOS.HTTP do
   @moduledoc false
 
+  def request(method, url, headers, body, options) do
+    uri = URI.parse(url)
+    ssl = ssl_options!(uri, options)
+    {:ok, _} = Application.ensure_all_started(:inets)
+    {:ok, _} = Application.ensure_all_started(:ssl)
+    headers = Enum.map(headers, fn {key, value} -> {to_charlist(key), to_charlist(value)} end)
+
+    send = fn content, headers ->
+      request =
+        if method in [:get, :head],
+          do: {to_charlist(url), headers},
+          else:
+            {to_charlist(url), headers,
+             to_charlist(options[:content_type] || "application/octet-stream"), content}
+
+      case :httpc.request(
+             method,
+             request,
+             [
+               ssl: ssl,
+               timeout: options[:timeout] || 300_000,
+               connect_timeout: 15_000,
+               autoredirect: false
+             ],
+             body_format: :binary,
+             max_body_size: 5_000_000,
+             socket_opts: [nodelay: true]
+           ) do
+        {:ok, {{_, status, _}, response_headers, response}} ->
+          %{status: status, headers: headers(response_headers), body: response}
+
+        {:error, _reason} ->
+          raise("HTTP #{method} request failed")
+      end
+    end
+
+    case body do
+      {:file, path} ->
+        File.open!(path, [:read, :binary], fn file ->
+          reader = fn device ->
+            case IO.binread(device, 1024 * 1024) do
+              :eof -> :eof
+              {:error, reason} -> raise("Upload file read failed: #{inspect(reason)}")
+              data -> {:ok, data, device}
+            end
+          end
+
+          send.({reader, file}, [
+            {~c"content-length", to_charlist(Integer.to_string(File.stat!(path).size))} | headers
+          ])
+        end)
+
+      content when is_binary(content) ->
+        send.(content, headers)
+    end
+  end
+
   def download(url, path, options, redirects \\ 3) do
     uri = URI.parse(url)
-
-    unless uri.scheme == "https" or
-             (options[:insecure] and uri.scheme == "http" and uri.host == "127.0.0.1"),
-           do: raise("Downloads require HTTPS; HTTP is limited to loopback tests")
-
-    if uri.userinfo, do: raise("Credentials in download URLs are not supported")
+    ssl = ssl_options!(uri, options)
     {:ok, _} = Application.ensure_all_started(:inets)
     {:ok, _} = Application.ensure_all_started(:ssl)
     deadline = options[:deadline] || System.monotonic_time(:millisecond) + 300_000
     timeout = min(300_000, deadline - System.monotonic_time(:millisecond))
     if timeout <= 0, do: raise("Download deadline exceeded")
-
-    ssl =
-      if uri.scheme == "https" do
-        ca = options[:cacert] || raise("Set NERVES_MACOS_CACERT to an explicit PEM CA bundle")
-        unless File.regular?(ca), do: raise("Expected a PEM CA file: #{ca}")
-
-        [
-          verify: :verify_peer,
-          cacertfile: to_charlist(ca),
-          customize_hostname_check: [
-            match_fun: :public_key.pkix_verify_hostname_match_fun(:https)
-          ]
-        ]
-      else
-        []
-      end
 
     headers =
       for {key, value} <- options[:headers] || [], do: {to_charlist(key), to_charlist(value)}
@@ -151,4 +187,25 @@ defmodule Nerves.System.MacOS.HTTP do
       Map.new(values, fn {key, value} ->
         {key |> to_string() |> String.downcase(), to_string(value)}
       end)
+
+  defp ssl_options!(uri, options) do
+    unless uri.scheme == "https" or
+             (options[:insecure] and uri.scheme == "http" and uri.host == "127.0.0.1"),
+           do: raise("HTTP requires HTTPS; plaintext is limited to loopback tests")
+
+    if uri.userinfo, do: raise("Credentials in URLs are not supported")
+
+    if uri.scheme == "https" do
+      ca = options[:cacert] || raise("Set NERVES_MACOS_CACERT to an explicit PEM CA bundle")
+      unless File.regular?(ca), do: raise("Expected a PEM CA file: #{ca}")
+
+      [
+        verify: :verify_peer,
+        cacertfile: to_charlist(ca),
+        customize_hostname_check: [match_fun: :public_key.pkix_verify_hostname_match_fun(:https)]
+      ]
+    else
+      []
+    end
+  end
 end

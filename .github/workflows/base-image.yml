@@ -51,6 +51,8 @@ jobs:
       GOPROXY: 'off'
       GOSUMDB: 'off'
       TART_NO_AUTO_PRUNE: '1'
+      PACKER_LOG: '1'
+      PACKER_LOG_PATH: ${{ github.workspace }}/.nerves/ci-logs/packer.log
       GUEST_USERNAME: admin
       GUEST_PASSWORD: admin
     steps:

@@ -37,6 +37,7 @@ Install the README prerequisites, Tart 2.36.0, Packer 1.16.0, Go 1.25.0 and the
 Tart Packer plugin 1.21.0 before starting the runner. The builder's pinned Go
 dependencies must already be in its module cache; CI disables Go module downloads.
 The job uses `/opt/homebrew/etc/openssl@3/cert.pem` for TLS verification.
+Packer's update checks and telemetry are disabled through `ci/packer.json`.
 
 The runner uses a reviewed local builder checkout and compiled CLI. Save their
 paths and the executable's SHA-256 in

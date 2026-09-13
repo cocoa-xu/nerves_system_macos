@@ -65,6 +65,7 @@ defmodule BaseImageCI do
   end
 
   defp inputs! do
+    System.put_env("PACKER_CONFIG", Path.expand("ci/packer.json"))
     Files.host!()
     profile = "ci/macos15.json" |> File.read!() |> Jason.decode!()
 

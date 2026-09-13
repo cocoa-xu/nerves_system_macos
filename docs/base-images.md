@@ -16,7 +16,7 @@ Run `mix nerves.macos.base profiles` to list the defaults:
 
 | macOS | Version | Apple build | Nerves runtime tested |
 | --- | --- | --- | --- |
-| 15 | 15.6.1 | 24G90 | No |
+| 15 | 15.6.1 | 24G90 | Yes |
 | 26 | 26.6.2 | 25G83 | Yes |
 | 27 | 27.0 RC | 26A428 | No |
 

@@ -8,8 +8,8 @@ for native compilation, and installs Elixir releases as launchd services.
 System packages use this platform in the same way that Linux system packages use
 `nerves_system_br`. Start with the [example system](examples/system) and
 [application](examples/hello), or read about [selecting a base](docs/base-images.md)
-to choose macOS 15, 26 or 27. The macOS 26 application workflow has been tested;
-macOS 15 and 27 runtime validation is still pending.
+to choose macOS 15, 26 or 27. The macOS 15 and 26 application workflows have been
+tested; macOS 27 runtime validation is still pending.
 
 ## Requirements
 

@@ -4,7 +4,7 @@ defmodule Nerves.System.MacOS.BaseSpec do
 
   @files ~w(config.json disk.img nvram.bin)
   @profiles [
-    %{major: 15, version: "15.6.1", build: "24G90", runtime_validation: "pending"},
+    %{major: 15, version: "15.6.1", build: "24G90", runtime_validation: "passed"},
     %{major: 26, version: "26.6.2", build: "25G83", runtime_validation: "passed"},
     %{major: 27, version: "27.0", build: "26A428", runtime_validation: "pending", channel: "rc"}
   ]

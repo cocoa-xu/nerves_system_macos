@@ -3,6 +3,8 @@
 Validated on September 13, 2026, on an Apple M4 Pro Mac mini running macOS 27.0
 (26A5425a), with Tart 2.36.0, Elixir 1.20.4, and host OTP 29.0.6.
 
+## macOS 26
+
 | Component | Result |
 | --- | --- |
 | Guest | macOS 26.6.2, build 25G83, arm64 |
@@ -35,9 +37,9 @@ The system's sparse archive writer was checked by extracting a sparse test disk
 and checking its logical size and compressed archive size. A full macOS system
 archive was not compressed and redistributed during this validation.
 
-This validation covers the macOS 26 application workflow. macOS 15 and 27 guest
-runtimes, VirtualBuddy import, physical Mac installation, production OTA updates,
-and Linux-specific Nerves runtime packages are outside these results.
+The application workflow has also passed on macOS 15, as described below.
+macOS 27 guest runtimes, VirtualBuddy import, physical Mac installation, production
+OTA updates, and Linux-specific Nerves runtime packages are outside these results.
 
 ## Base selection
 
@@ -65,12 +67,41 @@ after downloading the OCI config, before any disk blobs were requested.
 The local builder test checked executable and Git revision pins, rejected modified
 inputs, and removed its temporary output. It did not restore an IPSW. Native-file
 checks accepted a macOS 26 extension for the macOS 26 target and rejected it for
-macOS 15. Only the macOS 26 guest has completed runtime validation.
+macOS 15.
 
 The temporary selected-system artifact and release were removed after validation.
 The original base VMs and previously verified system and firmware were retained,
 along with an application-free `0.1.0` base prepared for publication. No base has
 been uploaded to GHCR yet.
+
+## macOS 15
+
+macOS 15.6.1 (24G90), image version `0.1.0`, passed a full Tart OCI roundtrip and
+the `macos15` application workflow on the same host. A fresh IPSW restore used
+the existing fixed Setup Assistant scripts. Packer installed Command Line Tools
+16.4, and an independent clone passed the base builder's cold-boot checks.
+
+The initial Packer connection failed in the host application's launch context.
+The same TCP probe and Packer template connected through an existing localhost
+SSH session, where provisioning resumed. No guest repair or setup-script changes
+were needed. This was not an uninterrupted base build.
+
+The complete base was pushed to a loopback OCI registry. With an empty cache,
+the production Elixir downloader checked the manifest digest, image version and
+all blobs before Tart imported the disk. The transfer used 57 blob GET requests
+and 21,029,519,648 response bytes (19.59 GiB), excluding manifests and headers.
+The imported guest passed the exact OS, admin, English/U.S. and blank-base checks.
+
+Nerves built the system artifact with OTP 29.0.2 and compiled the example's C NIF
+with a minimum macOS version of 15.6.1. Firmware installation and two cold boots
+passed application startup, Darwin/arm64 NIF, crypto and SSL checks. Both cold
+boots produced distinct boot IDs and ended with clean shutdowns. The full OCI
+acquisition, firmware build and two-boot sequence completed without retries.
+
+The verified blank base was retained for publication. The restore download,
+registry blobs, temporary VMs, application firmware and system cache were removed
+after saving the results. This used independent caches on one Mac; GHCR
+publication and acquisition from another physical host have not been tested.
 
 ## Layer distribution
 

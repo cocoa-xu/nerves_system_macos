@@ -55,22 +55,27 @@ jobs:
       GUEST_PASSWORD: admin
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        timeout-minutes: 3
         with:
           persist-credentials: false
           set-safe-directory: false
       - name: Check the platform
+        timeout-minutes: 5
         run: |
           mkdir -p .nerves/ci-logs
           mix deps.get --check-locked
           make validate
           mix run ci/base-image.exs check
       - name: Build and verify macOS 15
+        timeout-minutes: 100
         run: mix run ci/base-image.exs 2>&1 | tee .nerves/ci-logs/build.log
       - name: Clean this run's images
         if: always()
+        timeout-minutes: 5
         run: mix run ci/base-image.exs cleanup
       - name: Save build results
         if: always()
+        timeout-minutes: 3
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: macos15-${{ github.run_id }}-${{ github.run_attempt }}

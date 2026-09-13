@@ -34,9 +34,7 @@ defmodule BaseImageCI do
     build(root, logs, inputs)
   end
 
-  def publish do
-    token = System.fetch_env!("GH_TOKEN")
-    System.delete_env("GH_TOKEN")
+  def export do
     root = work_root()
 
     unless File.read!(Path.join(root, ".ci-run")) == run_id(),
@@ -58,15 +56,24 @@ defmodule BaseImageCI do
              do: raise("The saved CI base must be verified before publishing")
     end
 
-    BaseImagePublication.publish(
+    BaseImagePublication.prepare(
       Path.join(root, "base.tart"),
       profile!(),
       result["revision"],
       root,
-      logs,
-      token
+      logs
     )
+  end
 
+  def verify_publication do
+    root = work_root()
+
+    unless File.read!(Path.join(root, ".ci-run")) == run_id(),
+      do: raise("The work directory belongs to another run")
+
+    logs = Path.expand(".nerves/ci-logs")
+    BaseImagePublication.verify(root, logs)
+    result = Path.join(logs, "result.json") |> File.read!() |> Jason.decode!()
     VerifiedBase.remove(result)
   end
 
@@ -352,11 +359,27 @@ defmodule BaseImageCI do
 end
 
 case System.argv() do
-  [] -> BaseImageCI.run()
-  ["check"] -> BaseImageCI.check()
-  ["check-publication"] -> BaseImageCI.check_publication()
-  ["publish"] -> BaseImageCI.publish()
-  ["restore"] -> BaseImageCI.restore()
-  ["cleanup"] -> BaseImageCI.cleanup()
-  _ -> raise "Usage: mix run ci/base-image.exs [check|check-publication|publish|restore|cleanup]"
+  [] ->
+    BaseImageCI.run()
+
+  ["check"] ->
+    BaseImageCI.check()
+
+  ["check-publication"] ->
+    BaseImageCI.check_publication()
+
+  ["export"] ->
+    BaseImageCI.export()
+
+  ["verify-publication"] ->
+    BaseImageCI.verify_publication()
+
+  ["restore"] ->
+    BaseImageCI.restore()
+
+  ["cleanup"] ->
+    BaseImageCI.cleanup()
+
+  _ ->
+    raise "Usage: mix run ci/base-image.exs [check|check-publication|export|verify-publication|restore|cleanup]"
 end

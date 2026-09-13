@@ -71,9 +71,11 @@ build, publication and cleanup deadlines.
 
 Publication pushes to `ghcr.io/cocoa-xu/nerves_system_macos` with the version tag
 from [Image versions](base-images.md#image-versions). Existing tags are rejected.
-Tart writes OCI blobs to a loopback registry; Elixir/OTP uploads them with an
-explicit PEM CA bundle. The job token is removed from the environment before
-Tart or a guest verification process starts.
+Tart writes its native OCI image to a loopback registry. The export step arranges
+those files as an OCI image layout; an ORAS CLI step uploads it with an explicit
+PEM CA bundle. CI installs ORAS 1.3.0 through the project's setup action. Its
+temporary credential file is removed when the upload step exits. Tart and guest
+verification steps receive no registry credentials.
 
 New GHCR packages default to private. On the first publication, set the package
 visibility to **Public** in its GitHub settings. The job waits up to 30 minutes

@@ -11,33 +11,14 @@ defmodule BaseImagePublication do
     System.delete_env("GH_TOKEN")
     tag = BaseSpec.tag(profile)
     url = @registry <> "/v2/#{@repository}/manifests/#{tag}"
-    require_status!(registry_request(token, :head, url), [404])
+    require_status!(authenticated_head(token, url), [404])
     IO.puts("GHCR authentication passed and release tag #{tag} is unused")
   end
 
-  def publish(base, profile, revision, root, logs, token) do
-    tag = BaseSpec.tag(profile)
-    manifest_url = @registry <> "/v2/#{@repository}/manifests/#{tag}"
-    require_status!(registry_request(token, :head, manifest_url), [404])
+  def prepare(base, profile, revision, root, logs) do
     directory = Path.join(root, "publication")
     manifest_path = export(base, profile, revision, directory)
-    manifest = manifest_path |> File.read!() |> Jason.decode!()
     digest = "sha256:" <> Files.sha256(manifest_path)
-    descriptors = Enum.uniq_by([manifest["config"] | manifest["layers"]], & &1["digest"])
-
-    for {descriptor, index} <- Enum.with_index(descriptors, 1) do
-      upload_blob(directory, descriptor, token)
-      IO.puts("Uploaded OCI blob #{index}/#{length(descriptors)}")
-    end
-
-    require_status!(registry_request(token, :head, manifest_url), [404])
-
-    response =
-      registry_request(token, :put, manifest_url, {:file, manifest_path}, @manifest_type)
-      |> require_status!([201])
-
-    unless response.headers["docker-content-digest"] == digest,
-      do: raise("The registry returned a different manifest digest")
 
     spec =
       BaseSpec.validate!(%{
@@ -47,12 +28,27 @@ defmodule BaseImagePublication do
         "source" => %{"type" => "prebuilt", "reference" => "ghcr.io/#{@repository}@#{digest}"}
       })
 
-    spec_path = Path.join(logs, "base-spec.json")
-    Files.write_json(spec_path, spec)
+    Files.write_json(Path.join(logs, "base-spec.json"), spec)
     File.cp!(manifest_path, Path.join(logs, "oci-manifest.json"))
-    IO.puts("Published ghcr.io/#{@repository}:#{tag} at #{digest}")
-    wait_for_public_package!(manifest_url, digest)
-    File.rm_rf!(directory)
+
+    File.write!(
+      System.fetch_env!("GITHUB_OUTPUT"),
+      "layout=#{Path.join(directory, "layout")}\nreference=ghcr.io/#{@repository}:#{BaseSpec.tag(profile)}\n",
+      [:append]
+    )
+  end
+
+  def verify(root, logs) do
+    spec_path = Path.join(logs, "base-spec.json")
+    spec = spec_path |> File.read!() |> Jason.decode!() |> BaseSpec.validate!()
+    tag = BaseSpec.tag(spec)
+    digest = "sha256:" <> Files.sha256(Path.join(logs, "oci-manifest.json"))
+
+    unless spec["source"]["reference"] == "ghcr.io/#{@repository}@#{digest}",
+      do: raise("The base specification and exported manifest do not match")
+
+    wait_for_public_package!(@registry <> "/v2/#{@repository}/manifests/#{tag}", digest)
+    File.rm_rf!(Path.join(root, "publication"))
     imported = Path.join(root, "downloaded.tart")
     IO.puts("Downloading the published base anonymously and verifying a cold boot")
     BaseImage.prepare(spec_path, imported)
@@ -103,56 +99,40 @@ defmodule BaseImagePublication do
       end)
     end)
 
-    Path.join(directory, "v2/base/image/manifests/image")
-  end
+    manifest_path = Path.join(directory, "v2/base/image/manifests/image")
+    manifest = manifest_path |> File.read!() |> Jason.decode!()
+    digest = Files.sha256(manifest_path)
+    layout = Path.join(directory, "layout")
+    blobs = Path.join(layout, "blobs/sha256")
+    File.mkdir_p!(blobs)
 
-  defp upload_blob(directory, descriptor, token) do
-    digest = descriptor["digest"]
-    "sha256:" <> hash = digest
-    BaseSpec.digest!(hash)
-    path = Path.join(directory, "v2/base/image/blobs/" <> digest)
-    unless File.stat!(path).size == descriptor["size"], do: raise("OCI blob size mismatch")
-    url = @registry <> "/v2/#{@repository}/blobs/#{digest}"
-
-    case registry_request(token, :head, url) |> require_status!([200, 404]) do
-      %{status: 200} ->
-        :ok
-
-      %{status: 404} ->
-        upload_start = @registry <> "/v2/#{@repository}/blobs/uploads/"
-        response = registry_request(token, :post, upload_start)
-        require_status!(response, [202])
-        location = URI.merge(upload_start, Map.fetch!(response.headers, "location"))
-
-        unless location.scheme == "https" and location.host == "ghcr.io" and location.port == 443 and
-                 is_nil(location.userinfo) and is_nil(location.fragment),
-               do: raise("The registry upload location must use the HTTPS GHCR origin")
-
-        digest_parameter = "digest=" <> URI.encode_www_form(digest)
-
-        query =
-          case location.query do
-            value when value in [nil, ""] -> digest_parameter
-            value -> value <> "&" <> digest_parameter
-          end
-
-        upload_url = URI.to_string(%{location | query: query})
-
-        uploaded =
-          registry_request(token, :put, upload_url, {:file, path}) |> require_status!([201])
-
-        unless uploaded.headers["docker-content-digest"] == digest,
-          do: raise("The registry returned a different blob digest")
+    for descriptor <- Enum.uniq_by([manifest["config"] | manifest["layers"]], & &1["digest"]) do
+      "sha256:" <> hash = descriptor["digest"]
+      BaseSpec.digest!(hash)
+      source = Path.join(directory, "v2/base/image/blobs/sha256:" <> hash)
+      unless File.stat!(source).size == descriptor["size"], do: raise("OCI blob size mismatch")
+      File.rename!(source, Path.join(blobs, hash))
     end
+
+    File.cp!(manifest_path, Path.join(blobs, digest))
+    Files.write_json(Path.join(layout, "oci-layout"), %{"imageLayoutVersion" => "1.0.0"})
+
+    Files.write_json(Path.join(layout, "index.json"), %{
+      "schemaVersion" => 2,
+      "manifests" => [
+        %{
+          "mediaType" => @manifest_type,
+          "digest" => "sha256:" <> digest,
+          "size" => File.stat!(manifest_path).size,
+          "annotations" => %{"org.opencontainers.image.ref.name" => "image"}
+        }
+      ]
+    })
+
+    manifest_path
   end
 
-  defp registry_request(
-         token,
-         method,
-         url,
-         body \\ "",
-         content_type \\ "application/octet-stream"
-       ) do
+  defp authenticated_head(token, url) do
     credentials = System.fetch_env!("GITHUB_ACTOR") <> ":" <> token
 
     token_url =
@@ -177,11 +157,11 @@ defmodule BaseImagePublication do
       |> Map.fetch!("token")
 
     HTTP.request(
-      method,
+      :head,
       url,
       [{"authorization", "Bearer " <> token}, {"accept", @manifest_type}],
-      body,
-      options() ++ [content_type: content_type, timeout: 600_000]
+      "",
+      options()
     )
   end
 

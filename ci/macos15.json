@@ -2,7 +2,7 @@
   "image_version": "0.1.0",
   "prerelease": false,
   "macos": {"version": "15.6.1", "build": "24G90", "architecture": "arm64"},
-  "builder_revision": "c44b0545ef832908988bc26abc842839d83912b6",
+  "builder_revision": "19d383da1d07f3007c5e4587a0d4fc3a942813e6",
   "recipe": "config/sequoia-15.6.1.env",
   "ipsw": {
     "url": "https://updates.cdn-apple.com/2025SummerFCS/fullrestores/093-10809/CFD6DD38-DAF0-40DA-854F-31AAD1294C6F/UniversalMac_15.6.1_24G90_Restore.ipsw",

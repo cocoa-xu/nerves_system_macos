@@ -6,7 +6,7 @@ defmodule Nerves.System.MacOS.BaseSpec do
   @profiles [
     %{major: 15, version: "15.6.1", build: "24G90", runtime_validation: "passed"},
     %{major: 26, version: "26.6.2", build: "25G83", runtime_validation: "passed"},
-    %{major: 27, version: "27.0", build: "26A428", runtime_validation: "pending", channel: "rc"}
+    %{major: 27, version: "27.0", build: "26A428", runtime_validation: "passed", channel: "rc"}
   ]
 
   def profiles, do: @profiles

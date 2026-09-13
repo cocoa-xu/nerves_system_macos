@@ -1,120 +1,82 @@
 # Validation
 
-Validated on September 13, 2026, on an Apple M4 Pro Mac mini running macOS 27.0
+Validated on September 13–14, 2026, on an Apple M4 Pro Mac mini running macOS 27.0
 (26A5425a), with Tart 2.36.0, Elixir 1.20.4, and host OTP 29.0.6.
 
-## macOS 26
+## Published bases
 
-| Component | Result |
-| --- | --- |
-| Guest | macOS 26.6.2, build 25G83, arm64 |
-| Base image version | 0.1.0 (`26.6.2-25G83-v0.1.0`) |
-| Runtime input | OTP 29.0.2, ERTS 17.0.2, `arm64-apple-darwin` |
-| OpenSSL reported by crypto | OpenSSL 3.6.3, 9 Jun 2026 |
-| Download | SHA-256 verified; exact extracted OTP version checked |
-| System build | Built through the Nerves system package compiler and artifact cache |
-| Native compilation | C NIF built with the Darwin SDK and artifact ERTS headers |
-| Firmware | Release installed and all expected applications checked over local RPC |
-| Boot persistence | Two cold boots of an independent firmware copy passed |
-| Guest settings | admin account/full name/password, en_US, en-US, U.S. keyboard |
-| Static checks | Formatting, compilation without warnings, Bash syntax |
+All three image version `0.1.0` bases were built from pinned Apple IPSWs in CI.
+Each run completed Setup Assistant and Packer provisioning, checked a blank-base
+cold boot, built the Nerves system and native C NIF, installed the example release,
+and verified two cold boots with distinct application boot IDs. Guest checks
+confirmed the exact macOS version and build, admin account/full name/password,
+standard English, `en_US`, `en-US`, and U.S. keyboard.
 
-The example's NIF reported Darwin/arm64 from inside the guest. Each verified boot
-produced a new application boot ID, while preserving the previous boot records.
-The running release reported ERTS 17.0.2 and OpenSSL 3.6.3 through RPC. Both
-verification boots ended with a clean guest shutdown.
+| macOS | Apple build | Fresh CI build | Compressed OCI blobs |
+| --- | --- | --- | ---: |
+| 15.6.1 | 24G90 | [34752571489](https://github.com/cocoa-xu/nerves_system_macos/actions/runs/34752571489) | 21,028,862,718 bytes |
+| 26.6.2 | 25G83 | [34755074300](https://github.com/cocoa-xu/nerves_system_macos/actions/runs/34755074300) | 24,714,730,299 bytes |
+| 27.0 RC | 26A428 | [34758635823](https://github.com/cocoa-xu/nerves_system_macos/actions/runs/34758635823) | 30,985,468,901 bytes |
 
-A cold boot exposed an early exit in the launchd readiness check: a missing job
-caused `set -e` to exit before the retry loop could continue. The check now retries
-within its existing 90-second deadline. Both cold boots passed after this fix.
+The guest runtime was OTP 29.0.2, ERTS 17.0.2, and OpenSSL 3.6.3. The NIF
+reported Darwin/arm64, and RPC checks confirmed the running release, crypto and
+SSL. Each guest shut down cleanly. Builds used fixed scripts and bounded waits,
+without screenshots, OCR, or manual setup. Packer update checks and telemetry
+were disabled.
 
-The build and verification required no GUI interaction, screenshots, or OCR.
-They used private Tart homes and new VM names and MAC addresses. Original base
-VMs remained stopped and unchanged. Temporary VM copies were removed after
-verification.
+After publication, CI downloaded every image anonymously from GHCR, verified
+all blob hashes, imported it into Tart and passed an independent blank-base boot.
+The byte counts above include each unique compressed blob once, including OCI
+configuration, VM configuration and NVRAM. They exclude manifests and headers.
+The public manifests are:
 
-The system's sparse archive writer was checked by extracting a sparse test disk
-and checking its logical size and compressed archive size. A full macOS system
-archive was not compressed and redistributed during this validation.
+```text
+15.6.1-24G90-v0.1.0   sha256:66abe3cfb88852a3ac04704adbcf16e1bd4aa920a1f5a5180ab51792e902dac8
+26.6.2-25G83-v0.1.0   sha256:101d8fbd84556f209179bf43b8fe8ff259bb8af44733a79d0748437c7b9020a1
+27.0-26A428-v0.1.0    sha256:726ff8e5dd9fc90393db6b461a4173f5edcd76918b5b9d710b4e9b69765dcb39
+```
 
-The application workflow has also passed on macOS 15, as described below.
-macOS 27 guest runtimes, VirtualBuddy import, physical Mac installation, production
-OTA updates, and Linux-specific Nerves runtime packages are outside these results.
+The macOS 15 build passed before its original publication step failed.
+[34762495999](https://github.com/cocoa-xu/nerves_system_macos/actions/runs/34762495999)
+resumed publication from that verified base, preserving source revision
+`69f8e8f78f835761967b7c9db94f20a142c92d04`, then passed the complete anonymous
+acquisition and blank-base boot.
+[34765334480](https://github.com/cocoa-xu/nerves_system_macos/actions/runs/34765334480)
+created the GitHub release from those saved results with GitHub CLI.
 
-## Base selection
+Each [release](base-images.md#choose-a-version) includes `base-spec.json`,
+`inputs.json`, `result.json`, and `oci-manifest.json`. Their public bytes and hashes,
+OCI labels, manifest digest and tag commit were independently checked. macOS 27
+is a prerelease and is not Latest. Local CI images, retained publication copies,
+diagnostic VMs and temporary registry blobs were removed after verification.
 
-The `macos26` target built a system from a local base pinned by SHA-256. The build
-checked macOS 26.6.2/25G83, the admin account, English/U.S. settings, and the absence
-of a Nerves application. The guest shut down cleanly. Nerves then assembled the
-native hello release with OTP 29.0.2. A second release build reused the system
-artifact and rebuilt the C NIF for the selected deployment target without starting
-a VM or acquiring the base again.
+Public acquisition was tested on the publishing host. Acquisition from a second
+physical host, VirtualBuddy import, physical Mac installation, production OTA
+updates and Linux-specific Nerves runtime packages remain outside these results.
 
-The image version was then added to the specification. A fresh system and native
-hello firmware build passed with version `0.1.0` recorded in the base provenance,
-followed by the two cold boots above.
+## Base selection and caching
 
-A 16 MiB test disk exercised the prebuilt provider through a real Tart push and
-import. The test registry required anonymous Bearer authentication. Elixir/OTP
-downloaded and verified the manifest and blobs before Tart imported them from
-loopback. Altering a blob caused a SHA-256 failure, and both paths removed their
-temporary caches. A separate HTTPS check fetched a GHCR token and manifest using
-an explicit PEM CA bundle; it did not download image blobs.
+A second `macos26` application build reused the Nerves system artifact without
+acquiring or booting the base again. It rebuilt the C NIF for the selected
+deployment target. Changing the image version selected a new system artifact.
+Native-file checks accepted a macOS 26 extension for that target and rejected it
+for macOS 15.
 
-The versioned Tart roundtrip also passed. A mismatched image version was rejected
-after downloading the OCI config, before any disk blobs were requested.
+A 16 MiB test disk exercised the prebuilt provider with anonymous Bearer
+authentication. Altering a blob caused a SHA-256 failure; a mismatched image version
+was rejected after reading the OCI config, before requesting disk blobs. Both
+failure paths removed their temporary caches.
 
-The local builder test checked executable and Git revision pins, rejected modified
-inputs, and removed its temporary output. It did not restore an IPSW. Native-file
-checks accepted a macOS 26 extension for the macOS 26 target and rejected it for
-macOS 15.
+The local builder checks rejected modified executable and Git revision pins.
+The sparse archive writer preserved a test disk's logical size after extraction.
+A complete Nerves system archive was not compressed and redistributed in these
+checks.
 
-The temporary selected-system artifact and release were removed after validation.
-The original base VMs and previously verified system and firmware were retained,
-along with an application-free `0.1.0` base prepared for publication. No base has
-been uploaded to GHCR yet.
-
-## macOS 15
-
-macOS 15.6.1 (24G90), image version `0.1.0`, passed a clean build in
-[GitHub Actions](https://github.com/cocoa-xu/nerves_system_macos/actions/runs/34740512619).
-The Mac mini restored the pinned IPSW, completed the fixed Setup Assistant
-scripts and Packer provisioning, and verified an independent blank-base boot.
-Nerves then built the system, compiled the example's C NIF, installed the firmware,
-and verified two cold boots with distinct application boot IDs. The entire run
-completed without manual intervention, screenshots, OCR, or phase retries.
-Packer update checks and telemetry were disabled throughout this run.
-
-The build job took 31 minutes 45 seconds. Cleanup removed its VMs, IPSW, system
-artifact and firmware. Guest logs and result metadata were uploaded as a small
-Actions artifact with 14-day retention. No VM image was published by this job.
-
-A separate local run passed a full Tart OCI roundtrip and the `macos15`
-application workflow on the same host. Its fresh IPSW restore used
-the existing fixed Setup Assistant scripts. Packer installed Command Line Tools
-16.4, and an independent clone passed the base builder's cold-boot checks.
-
-The initial Packer connection failed in the host application's launch context.
-The same TCP probe and Packer template connected through an existing localhost
-SSH session, where provisioning resumed. No guest repair or setup-script changes
-were needed. This was not an uninterrupted base build.
-
-The complete base was pushed to a loopback OCI registry. With an empty cache,
-the production Elixir downloader checked the manifest digest, image version and
-all blobs before Tart imported the disk. The transfer used 57 blob GET requests
-and 21,029,519,648 response bytes (19.59 GiB), excluding manifests and headers.
-The imported guest passed the exact OS, admin, English/U.S. and blank-base checks.
-
-Nerves built the system artifact with OTP 29.0.2 and compiled the example's C NIF
-with a minimum macOS version of 15.6.1. Firmware installation and two cold boots
-passed application startup, Darwin/arm64 NIF, crypto and SSL checks. Both cold
-boots produced distinct boot IDs and ended with clean shutdowns. The full OCI
-acquisition, firmware build and two-boot sequence completed without retries.
-
-The local blank base, restore download, registry blobs, temporary VMs, application
-firmware and system cache were removed after saving the results. This used
-independent caches on one Mac; GHCR publication and acquisition from another
-physical host have not been tested.
+After the base releases, a separate 16 MiB Tart export passed conversion to an OCI
+image layout, copying with ORAS 1.3.0, and import through Tart 2.36.0. The manifest,
+blobs, disk and NVRAM remained unchanged. ORAS also resolved the published macOS 15
+tag anonymously using an explicit PEM CA bundle. This format check did not upload
+another image to GHCR or boot the test disk.
 
 ## Layer distribution
 
@@ -152,8 +114,7 @@ The [machine-readable result](../experiments/layers/results/macos-26.json)
 records the environment, byte counts, immutable manifest digests and boot IDs.
 The resumable runner was checked after completion without rerunning the VM
 phases. Cleanup then removed all experiment VMs, registry blobs, private caches,
-temporary releases and the earlier tiny-disk probe. Original bases and the
-previously verified native firmware were retained.
+temporary releases and the earlier tiny-disk probe.
 
 To reproduce, follow the runtime download and example build steps in
 [`README.md`](../README.md), then run `mix nerves.macos.verify` on the completed

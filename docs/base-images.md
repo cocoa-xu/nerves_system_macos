@@ -14,19 +14,20 @@ The base builder does not need to run for each application release.
 
 Run `mix nerves.macos.base profiles` to list the defaults:
 
-| macOS | Version | Apple build | Nerves runtime tested |
-| --- | --- | --- | --- |
-| 15 | 15.6.1 | 24G90 | Yes |
-| 26 | 26.6.2 | 25G83 | Yes |
-| 27 | 27.0 RC | 26A428 | No |
+| macOS | Version | Apple build | Nerves runtime tested | Base release |
+| --- | --- | --- | --- | --- |
+| 15 | 15.6.1 | 24G90 | Yes | [0.1.0](https://github.com/cocoa-xu/nerves_system_macos/releases/tag/15.6.1-24G90-v0.1.0) |
+| 26 | 26.6.2 | 25G83 | Yes | [0.1.0](https://github.com/cocoa-xu/nerves_system_macos/releases/tag/26.6.2-25G83-v0.1.0) |
+| 27 | 27.0 RC | 26A428 | Yes | [0.1.0 prerelease](https://github.com/cocoa-xu/nerves_system_macos/releases/tag/27.0-26A428-v0.1.0) |
 
 Use `--version` and `--build` together to select a different release. Both values
 are saved in `base.json` and checked inside the guest. The host must run at least
 the selected guest's macOS major. Native files are also checked for a compatible
 minimum macOS version.
 
-No base images have been published yet. You can use a local base now; the prebuilt
-option accepts a public Tart image once one is available.
+All three images are available from `ghcr.io/cocoa-xu/nerves_system_macos`. Each
+release includes a `base-spec.json` with the immutable manifest digest. Download
+that specification and use it with the prebuilt workflow below.
 
 ## Tart compatibility
 
@@ -75,13 +76,13 @@ Use the image's manifest digest, not a tag:
 
 ```sh
 mix nerves.macos.base lock --macos 26 --image-version 0.1.0 --source prebuilt \
-  --reference 'ghcr.io/OWNER/IMAGE@sha256:MANIFEST_DIGEST' \
+  --reference 'ghcr.io/cocoa-xu/nerves_system_macos@sha256:101d8fbd84556f209179bf43b8fe8ff259bb8af44733a79d0748437c7b9020a1' \
   --output base.json
 ```
 
-Replace the placeholders with the repository and its 64-character lowercase
-SHA-256 digest. The registry must allow anonymous pulls. To download and check
-the base:
+This selects the published macOS 26 base. For another release, use its attached
+`base-spec.json` or its manifest digest. The registry must allow anonymous pulls.
+To download and check the base:
 
 ```sh
 export NERVES_MACOS_CACERT=/opt/homebrew/etc/openssl@3/cert.pem

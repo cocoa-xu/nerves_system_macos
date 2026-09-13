@@ -8,8 +8,9 @@ for native compilation, and installs Elixir releases as launchd services.
 System packages use this platform in the same way that Linux system packages use
 `nerves_system_br`. Start with the [example system](examples/system) and
 [application](examples/hello), or read about [selecting a base](docs/base-images.md)
-to choose macOS 15, 26 or 27. The macOS 15 and 26 application workflows have been
-tested; macOS 27 runtime validation is still pending.
+to choose macOS 15, 26 or 27. All three have passed native application builds and
+two cold boots. Public base images are available for each profile; macOS 27
+remains a prerelease.
 
 ## Requirements
 
@@ -115,7 +116,8 @@ specific acceptance tests for your own services.
 ## Define a system package
 
 For macOS 15, 26 or 27 with a prebuilt, local or locally restored base, see
-[selecting a base](docs/base-images.md). No base images have been published yet.
+[selecting a base](docs/base-images.md). Each public release includes a base
+specification pinned to its GHCR manifest digest.
 
 See [`examples/system`](examples/system). The essential package configuration is:
 

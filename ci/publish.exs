@@ -57,17 +57,14 @@ defmodule BaseImagePublication do
     IO.puts("Downloading the published base anonymously and verifying a cold boot")
     BaseImage.prepare(spec_path, imported)
     File.cp!(imported <> ".log", Path.join(logs, "published-guest.log"))
-    release = create_release(profile, spec, revision, logs, token)
 
     Files.write_json(Path.join(logs, "publication.json"), %{
       "tag" => tag,
       "reference" => spec["source"]["reference"],
-      "release" => release["html_url"],
-      "prerelease" => release["prerelease"],
       "anonymous_pull" => "passed"
     })
 
-    IO.puts("Published and verified #{release["html_url"]}")
+    IO.puts("Published and verified #{spec["source"]["reference"]}")
   end
 
   def export(base, profile, revision, directory) do
@@ -241,104 +238,6 @@ defmodule BaseImagePublication do
         {:cont, nil}
       end
     end)
-  end
-
-  defp create_release(profile, spec, revision, logs, token) do
-    tag = BaseSpec.tag(profile)
-    reference = spec["source"]["reference"]
-
-    body = """
-    Blank arm64 macOS base with SSH and Command Line Tools.
-
-    Account and password: `admin`. Language: English (United States). Keyboard: U.S.
-
-    ```sh
-    tart clone #{reference} macos-#{BaseSpec.major(spec)}
-    ```
-
-    Use the attached `base-spec.json` with `mix nerves.macos.base prepare`.
-    The Nerves system, native example and two cold boots passed with OTP #{profile["otp"]["version"]}.
-    The published image was downloaded anonymously and passed an independent blank-base boot.
-    """
-
-    payload =
-      Jason.encode!(%{
-        "tag_name" => tag,
-        "target_commitish" => revision,
-        "name" =>
-          "macOS #{profile["macos"]["version"]} (#{profile["macos"]["build"]}), image #{profile["image_version"]}",
-        "body" => String.trim(body),
-        "prerelease" => profile["prerelease"],
-        "draft" => true
-      })
-
-    headers = [
-      {"authorization", "Bearer " <> token},
-      {"accept", "application/vnd.github+json"},
-      {"user-agent", "nerves-system-macos"}
-    ]
-
-    response =
-      HTTP.request(
-        :post,
-        "https://api.github.com/repos/#{@repository}/releases",
-        headers,
-        payload,
-        options() ++ [content_type: "application/json"]
-      )
-      |> require_status!([201])
-
-    release = Jason.decode!(response.body)
-    upload_url = release["upload_url"] |> String.split("{") |> hd()
-
-    uri = URI.parse(upload_url)
-
-    unless uri.scheme == "https" and uri.host == "uploads.github.com" and uri.port == 443 and
-             String.starts_with?(uri.path, "/repos/#{@repository}/releases/"),
-           do: raise("Unexpected release upload host")
-
-    for name <- ["base-spec.json", "inputs.json", "result.json", "oci-manifest.json"] do
-      path = Path.join(logs, name)
-
-      asset =
-        HTTP.request(
-          :post,
-          upload_url <> "?name=" <> name,
-          headers,
-          {:file, path},
-          options() ++ [content_type: "application/json"]
-        )
-        |> require_status!([201])
-        |> Map.fetch!(:body)
-        |> Jason.decode!()
-
-      unless asset["state"] == "uploaded" and asset["size"] == File.stat!(path).size,
-        do: raise("The release asset upload is incomplete")
-    end
-
-    payload =
-      Jason.encode!(%{
-        "draft" => false,
-        "make_latest" => if(profile["prerelease"], do: "false", else: "true")
-      })
-
-    release =
-      HTTP.request(
-        :patch,
-        "https://api.github.com/repos/#{@repository}/releases/#{release["id"]}",
-        headers,
-        payload,
-        options() ++ [content_type: "application/json"]
-      )
-      |> require_status!([200])
-      |> Map.fetch!(:body)
-      |> Jason.decode!()
-
-    unless release["draft"] == false and release["tag_name"] == tag and
-             release["prerelease"] == profile["prerelease"],
-           do: raise("The published release metadata does not match")
-
-    release
   end
 
   defp require_status!(%{status: status} = response, accepted) do

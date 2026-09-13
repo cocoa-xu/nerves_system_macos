@@ -21,6 +21,10 @@ on:
         description: Resume publication of a saved CI run (run ID-attempt); leave empty to build
         type: string
         default: ''
+      release_run:
+        description: Create a GitHub release from a published and verified CI run (run ID-attempt)
+        type: string
+        default: ''
 
 permissions:
   contents: read
@@ -46,6 +50,7 @@ jobs:
     outputs:
       versions: ${{ steps.versions.outputs.versions }}
       verified_run: ${{ steps.versions.outputs.verified_run }}
+      release_run: ${{ steps.versions.outputs.release_run }}
     steps:
       - uses: actions/checkout@v7
         with:
@@ -62,6 +67,7 @@ jobs:
           REF_TYPE: ${{ github.ref_type }}
           BEFORE: ${{ github.event.before }}
           VERIFIED_RUN: ${{ inputs.verified_run }}
+          RELEASE_RUN: ${{ inputs.release_run }}
           PUBLISH: ${{ inputs.publish }}
         run: |
           python3 - <<'PY'
@@ -74,6 +80,7 @@ jobs:
           versions = ["15", "26", "27"]
           macos = os.environ["MACOS"]
           verified_run = os.environ["VERIFIED_RUN"]
+          release_run = os.environ["RELEASE_RUN"]
           event = os.environ["EVENT"]
           if event == "push" and os.environ["REF_TYPE"] == "branch":
               before = os.environ["BEFORE"]
@@ -91,11 +98,15 @@ jobs:
               if path.is_symlink() or not path.is_file():
                   raise SystemExit("ci/publication.json must be a regular file")
               request = json.loads(path.read_text())
-              if not isinstance(request, dict) or set(request) != {"macos", "verified_run"}:
-                  raise SystemExit("Publication requests require macos and verified_run")
-              macos, verified_run = request["macos"], request["verified_run"]
-              if not isinstance(verified_run, str) or not verified_run:
-                  raise SystemExit("Publication requests require a saved run ID-attempt")
+              if not isinstance(request, dict) or set(request) not in (
+                  {"macos", "verified_run"}, {"macos", "release_run"}
+              ):
+                  raise SystemExit("Publication requests require macos and one recovery run")
+              macos = request["macos"]
+              verified_run = request.get("verified_run", "")
+              release_run = request.get("release_run", "")
+              if not isinstance(verified_run, str) or not isinstance(release_run, str) or not (verified_run or release_run):
+                  raise SystemExit("Publication requests require a run ID-attempt")
           elif event == "push" and os.environ["REF_TYPE"] == "tag":
               matches = []
               for major in versions:
@@ -107,12 +118,15 @@ jobs:
                   raise SystemExit("The release tag must match exactly one pinned profile")
               macos = matches[0]
               verified_run = ""
+              release_run = ""
           elif event != "workflow_dispatch":
               raise SystemExit("Unsupported workflow event")
-          if verified_run:
+          if verified_run and release_run:
+              raise SystemExit("Select only one recovery run")
+          if verified_run or release_run:
               if (macos not in versions or
                   (event == "workflow_dispatch" and os.environ["PUBLISH"] != "true") or
-                  not re.fullmatch(r"[1-9]\d*-[1-9]\d*", verified_run)):
+                  not re.fullmatch(r"[1-9]\d*-[1-9]\d*", verified_run or release_run)):
                   raise SystemExit("Select one macOS version, enable publication and enter a saved run ID-attempt")
           if macos != "all":
               if macos not in versions:
@@ -121,15 +135,17 @@ jobs:
           with open(os.environ["GITHUB_OUTPUT"], "a") as output:
               output.write("versions=" + json.dumps(versions) + "\n")
               output.write("verified_run=" + verified_run + "\n")
+              output.write("release_run=" + release_run + "\n")
           PY
 
   build:
     name: macOS ${{ matrix.macos }}
     needs: authorize
+    if: needs.authorize.outputs.release_run == ''
     runs-on: [self-hosted, macOS, ARM64]
     timeout-minutes: 210
     permissions:
-      contents: write
+      contents: read
       packages: write
     strategy:
       max-parallel: 1
@@ -203,3 +219,65 @@ jobs:
           include-hidden-files: true
           if-no-files-found: warn
           retention-days: 14
+
+  release:
+    name: Release macOS ${{ matrix.macos }}
+    needs: [authorize, build]
+    if: >-
+      always() && needs.authorize.result == 'success' &&
+      (needs.build.result == 'success' || needs.authorize.outputs.release_run != '') &&
+      (github.event_name == 'push' || inputs.publish)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      actions: read
+      contents: write
+    strategy:
+      max-parallel: 1
+      fail-fast: false
+      matrix:
+        macos: ${{ fromJSON(needs.authorize.outputs.versions) }}
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: cocoa-xu/nerves_system_macos
+      GH_CONFIG_DIR: ${{ github.workspace }}/.nerves/gh-release
+      GH_PROMPT_DISABLED: '1'
+      NERVES_MACOS_CACERT: /etc/ssl/certs/ca-certificates.crt
+      PUBLICATION_RUN: ${{ needs.authorize.outputs.release_run || format('{0}-{1}', github.run_id, github.run_attempt) }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - uses: oras-project/setup-oras@22ce207df3b08e061f537244349aac6ae1d214f6
+        with:
+          version: 1.3.0
+      - name: Download publication results
+        env:
+          MACOS_MAJOR: ${{ matrix.macos }}
+        run: |
+          run_id="${PUBLICATION_RUN%-*}"
+          attempt="${PUBLICATION_RUN#*-}"
+          gh api "repos/$GH_REPO/actions/runs/$run_id/attempts/$attempt" > "$RUNNER_TEMP/publication-run.json"
+          jq -e --arg repository "$GH_REPO" --argjson attempt "$attempt" \
+            --arg current "$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT" --arg publication "$PUBLICATION_RUN" '
+            .repository.full_name == $repository and .run_attempt == $attempt and
+            .actor.login == "cocoa-xu" and .triggering_actor.login == "cocoa-xu" and
+            .path == ".github/workflows/base-image.yml" and
+            (.event == "push" or .event == "workflow_dispatch") and
+            (.status == "completed" or $publication == $current)
+          ' "$RUNNER_TEMP/publication-run.json"
+          git merge-base --is-ancestor "$(jq -er .head_sha "$RUNNER_TEMP/publication-run.json")" origin/main
+          gh api "repos/$GH_REPO/actions/runs/$run_id/attempts/$attempt/jobs?per_page=100" > "$RUNNER_TEMP/publication-jobs.json"
+          jq -e --arg major "$MACOS_MAJOR" --slurpfile run "$RUNNER_TEMP/publication-run.json" '
+            any(.jobs[]; .name == ("macOS " + $major) and
+              .status == "completed" and .head_sha == $run[0].head_sha and
+              any(.steps[]; (.name == "Build and verify macOS" or .name == "Restore the verified CI base") and .conclusion == "success") and
+              any(.steps[]; .name == "Publish and verify the base" and (.conclusion == "success" or .conclusion == "failure")) and
+              any(.steps[]; .name == "Save build results" and .conclusion == "success"))
+          ' "$RUNNER_TEMP/publication-jobs.json"
+          gh run download "$run_id" --name "macos$MACOS_MAJOR-$PUBLICATION_RUN" --dir .nerves/ci-logs
+      - name: Create GitHub release
+        env:
+          MACOS_MAJOR: ${{ matrix.macos }}
+        run: bash ci/release.sh

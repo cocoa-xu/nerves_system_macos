@@ -17,8 +17,10 @@ job checks that the commit belongs to
 `main` and each pushed tag matches exactly one pinned profile before the Mac mini
 receives work. It has no pull-request trigger.
 
-The build job can write packages and releases. Checkout does not retain
-credentials; publication steps receive the job's short-lived `GITHUB_TOKEN`.
+The Mac mini job can write packages. A separate GitHub-hosted Linux job creates
+releases with `gh release create --verify-tag` from the verified metadata artifact.
+Checkout does not retain credentials; publication steps receive the job's
+short-lived `GITHUB_TOKEN`.
 These checks are not a runner access policy: anyone who can change eligible
 workflows could request the same runner. A private release repository remains
 preferable when other contributors receive write access.
@@ -108,6 +110,13 @@ checks the push changes only this file and selects a single version and saved ru
 ID before scheduling the Mac mini. The owner restrictions and saved-base
 verification apply to this path too. Other pushes to `main` do not request
 publication.
+
+If GHCR publication and the anonymous cold boot passed but GitHub release creation
+failed, set **release_run** to that publication run ID and attempt instead.
+The Linux job downloads its metadata artifact and creates the release without
+scheduling the Mac mini. For a Git request, replace `verified_run` with
+`release_run`. These two recovery inputs are mutually exclusive. The existing tag
+must point to the original build revision; release creation never moves it.
 
 Cleanup runs after each version, including on failure. It stops only that run's
 VMs and checks that their disks are closed before removing downloads and build

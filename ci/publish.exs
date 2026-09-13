@@ -124,18 +124,24 @@ defmodule BaseImagePublication do
         :ok
 
       %{status: 404} ->
-        response =
-          registry_request(token, :post, @registry <> "/v2/#{@repository}/blobs/uploads/")
-
+        upload_start = @registry <> "/v2/#{@repository}/blobs/uploads/"
+        response = registry_request(token, :post, upload_start)
         require_status!(response, [202])
-        location = URI.merge(@registry, Map.fetch!(response.headers, "location"))
+        location = URI.merge(upload_start, Map.fetch!(response.headers, "location"))
 
         unless location.scheme == "https" and location.host == "ghcr.io" and location.port == 443 and
-                 String.starts_with?(location.path, "/v2/#{@repository}/blobs/uploads/"),
-               do: raise("Unexpected registry upload location")
+                 is_nil(location.userinfo) and is_nil(location.fragment),
+               do: raise("The registry upload location must use the HTTPS GHCR origin")
 
-        query = URI.decode_query(location.query || "") |> Map.put("digest", digest)
-        upload_url = URI.to_string(%{location | query: URI.encode_query(query)})
+        digest_parameter = "digest=" <> URI.encode_www_form(digest)
+
+        query =
+          case location.query do
+            value when value in [nil, ""] -> digest_parameter
+            value -> value <> "&" <> digest_parameter
+          end
+
+        upload_url = URI.to_string(%{location | query: query})
 
         uploaded =
           registry_request(token, :put, upload_url, {:file, path}) |> require_status!([201])

@@ -1,0 +1,80 @@
+name: Build macOS base
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - ci-macos15-*
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    shell: bash
+
+concurrency:
+  group: macos-base
+  cancel-in-progress: false
+
+jobs:
+  authorize:
+    if: >-
+      github.repository == 'cocoa-xu/nerves_system_macos' &&
+      github.actor == 'cocoa-xu' && github.triggering_actor == 'cocoa-xu' &&
+      (github.event_name == 'push' || github.ref == 'refs/heads/main')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - name: Require a commit from main
+        run: git merge-base --is-ancestor "$GITHUB_SHA" origin/main
+
+  build:
+    needs: authorize
+    runs-on: [self-hosted, macOS, ARM64]
+    timeout-minutes: 120
+    env:
+      PATH: /opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin
+      HEX_CACERTS_PATH: /opt/homebrew/etc/openssl@3/cert.pem
+      NERVES_MACOS_CACERT: /opt/homebrew/etc/openssl@3/cert.pem
+      GIT_SSL_CAINFO: /opt/homebrew/etc/openssl@3/cert.pem
+      GIT_CONFIG_NOSYSTEM: '1'
+      GIT_CONFIG_GLOBAL: /dev/null
+      GIT_CONFIG_COUNT: '1'
+      GIT_CONFIG_KEY_0: credential.helper
+      GIT_CONFIG_VALUE_0: ''
+      GIT_TERMINAL_PROMPT: '0'
+      GOPROXY: 'off'
+      GOSUMDB: 'off'
+      TART_NO_AUTO_PRUNE: '1'
+      GUEST_USERNAME: admin
+      GUEST_PASSWORD: admin
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+          set-safe-directory: false
+      - name: Check the platform
+        run: |
+          mkdir -p .nerves/ci-logs
+          mix deps.get --check-locked
+          make validate
+          mix run ci/base-image.exs check
+      - name: Build and verify macOS 15
+        run: mix run ci/base-image.exs 2>&1 | tee .nerves/ci-logs/build.log
+      - name: Clean this run's images
+        if: always()
+        run: mix run ci/base-image.exs cleanup
+      - name: Save build results
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: macos15-${{ github.run_id }}-${{ github.run_attempt }}
+          path: .nerves/ci-logs/
+          include-hidden-files: true
+          if-no-files-found: warn
+          retention-days: 14

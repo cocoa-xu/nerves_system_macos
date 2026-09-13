@@ -1,0 +1,15 @@
+{
+  "image_version": "0.1.0",
+  "macos": {"version": "15.6.1", "build": "24G90", "architecture": "arm64"},
+  "builder_revision": "c44b0545ef832908988bc26abc842839d83912b6",
+  "recipe": "config/sequoia-15.6.1.env",
+  "ipsw": {
+    "url": "https://updates.cdn-apple.com/2025SummerFCS/fullrestores/093-10809/CFD6DD38-DAF0-40DA-854F-31AAD1294C6F/UniversalMac_15.6.1_24G90_Restore.ipsw",
+    "size": 16814137790,
+    "sha256": "3d87686b691ac765eb6a6b3082b2334e2af9710096a00432dd519af89ff2ea78"
+  },
+  "otp": {
+    "version": "29.0.2",
+    "sha256": "cdf2382ffd0d7d79eb37e0e4b59549cfc8343fdffc9855eea235f12ecfb1ccf3"
+  }
+}

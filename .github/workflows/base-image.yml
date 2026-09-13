@@ -1,7 +1,9 @@
 name: Build macOS base
-run-name: macOS ${{ inputs.macos }} base images
+run-name: macOS ${{ inputs.macos || github.ref_name }} base images
 
 on:
+  push:
+    tags: ['*-v*']
   workflow_dispatch:
     inputs:
       macos:
@@ -30,7 +32,8 @@ jobs:
     if: >-
       github.repository == 'cocoa-xu/nerves_system_macos' &&
       github.actor == 'cocoa-xu' && github.triggering_actor == 'cocoa-xu' &&
-      github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'
+      ((github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main') ||
+       (github.event_name == 'push' && github.ref_type == 'tag'))
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     outputs:
@@ -46,12 +49,32 @@ jobs:
         id: versions
         env:
           MACOS: ${{ inputs.macos }}
+          EVENT: ${{ github.event_name }}
+          REF: ${{ github.ref_name }}
         run: |
-          case "$MACOS" in
-            all) printf 'versions=["15","26","27"]\n' >> "$GITHUB_OUTPUT" ;;
-            15|26|27) printf 'versions=["%s"]\n' "$MACOS" >> "$GITHUB_OUTPUT" ;;
-            *) exit 1 ;;
-          esac
+          python3 - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          versions = ["15", "26", "27"]
+          if os.environ["EVENT"] == "push":
+              matches = []
+              for major in versions:
+                  profile = json.loads(Path(f"ci/macos{major}.json").read_text())
+                  tag = f'{profile["macos"]["version"]}-{profile["macos"]["build"]}-v{profile["image_version"]}'
+                  if tag == os.environ["REF"]:
+                      matches.append(major)
+              if len(matches) != 1:
+                  raise SystemExit("The release tag must match exactly one pinned profile")
+              versions = matches
+          elif os.environ["MACOS"] != "all":
+              if os.environ["MACOS"] not in versions:
+                  raise SystemExit("Select macOS 15, 26 or 27")
+              versions = [os.environ["MACOS"]]
+          with open(os.environ["GITHUB_OUTPUT"], "a") as output:
+              output.write("versions=" + json.dumps(versions) + "\n")
+          PY
 
   build:
     name: macOS ${{ matrix.macos }}
@@ -99,7 +122,7 @@ jobs:
           make validate
           mix run ci/base-image.exs check
       - name: Check publication access
-        if: inputs.publish
+        if: github.event_name == 'push' || inputs.publish
         timeout-minutes: 3
         env:
           GH_TOKEN: ${{ github.token }}
@@ -108,7 +131,7 @@ jobs:
         timeout-minutes: 100
         run: mix run ci/base-image.exs 2>&1 | tee .nerves/ci-logs/build.log
       - name: Publish and verify the base
-        if: inputs.publish
+        if: github.event_name == 'push' || inputs.publish
         timeout-minutes: 100
         env:
           GH_TOKEN: ${{ github.token }}

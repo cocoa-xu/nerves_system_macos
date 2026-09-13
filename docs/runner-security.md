@@ -11,8 +11,9 @@ repository used for releases. Give access only to trusted release maintainers.
 Keep public pull-request checks on GitHub-hosted runners.
 
 The [base workflow](../.github/workflows/base-image.yml) accepts manual runs on
-`main`. It allows only the repository owner's original runs and reruns. A
-GitHub-hosted job checks that the commit belongs to `main` before the Mac mini
+`main` and formal image version tags. It allows only the repository owner's
+original runs and reruns. A GitHub-hosted job checks that the commit belongs to
+`main` and each pushed tag matches exactly one pinned profile before the Mac mini
 receives work. It has no pull-request trigger.
 
 The build job can write packages and releases. Checkout does not retain
@@ -61,7 +62,8 @@ copies that revision into its work directory and checks the executable hash.
 
 Start **Build macOS base** from Actions on `main` after reviewing the commit.
 Select a macOS version or `all`. Leave **Publish verified bases** enabled to
-publish; disable it for build-only validation. Builds run one at a time and
+publish; disable it for build-only validation. Pushing a formal version tag,
+such as `15.6.1-24G90-v0.1.0`, builds and publishes that profile. Builds run one at a time and
 require 100 GiB free. Each version has a 210-minute job limit, including separate
 build, publication and cleanup deadlines.
 

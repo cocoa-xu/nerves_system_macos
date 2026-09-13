@@ -15,11 +15,11 @@ The [base workflow](../.github/workflows/base-image.yml) accepts manual runs on
 GitHub-hosted job checks that the commit belongs to `main` before the Mac mini
 receives work. It has no pull-request trigger.
 
-The job has read access to repository contents, does not retain checkout
-credentials, and has no package write access. These workflow checks are not a
-runner access policy: anyone who can change
-eligible workflows could request the same runner. A private release repository
-remains preferable when other contributors receive write access.
+The build job can write packages and releases. Checkout does not retain
+credentials; publication steps receive the job's short-lived `GITHUB_TOKEN`.
+These checks are not a runner access policy: anyone who can change eligible
+workflows could request the same runner. A private release repository remains
+preferable when other contributors receive write access.
 
 Enterprise runner groups can restrict access to selected workflow paths and refs.
 Personal repository runners do not have that workflow allowlist. Runner labels
@@ -28,10 +28,11 @@ See GitHub's [runner group documentation](https://docs.github.com/en/enterprise-
 
 ## Run a build
 
-The first workflow builds macOS 15.6.1 from its pinned IPSW, verifies the blank
+The workflow builds macOS 15, 26 or 27 from pinned IPSWs, verifies each blank
 guest, builds the Nerves example with OTP 29.0.2, and checks two cold boots.
-[ci/macos15.json](../ci/macos15.json) records the image version, builder revision,
-IPSW size and SHA-256, and OTP SHA-256. It does not reuse a prepared local VM.
+The profiles in [ci/](../ci) record the image version, builder revision, IPSW
+size and SHA-256, and OTP SHA-256. Every build restores a new VM; existing local
+images are never CI inputs.
 
 Install the README prerequisites, Tart 2.36.0, Packer 1.16.0, Go 1.25.0 and the
 Tart Packer plugin 1.21.0 before starting the runner. The builder's pinned Go
@@ -54,16 +55,37 @@ paths and the executable's SHA-256 in
 ```
 
 Replace the placeholders with the installed paths and the executable's lowercase
-SHA-256. The checkout must be clean at the revision in `ci/macos15.json`. The job
+SHA-256. The checkout must be clean at the revision in the selected profile. The job
 copies that revision into its work directory and checks the executable hash.
 `NERVES_MACOS_RUNNER_CONFIG` can select another configuration file.
 
 Start **Build macOS base** from Actions on `main` after reviewing the commit.
-Builds run one at a time, require 100 GiB free, and have a two-hour job timeout.
-Logs and result metadata are retained as an Actions artifact for 14 days.
-Cleanup stops only this run's VMs and checks that their
-disks are closed before removing downloads and build outputs. This first workflow
-does not publish images to GHCR or upload VM disks as Actions artifacts.
+Select a macOS version or `all`. Leave **Publish verified bases** enabled to
+publish; disable it for build-only validation. Builds run one at a time and
+require 100 GiB free. Each version has a 210-minute job limit, including separate
+build, publication and cleanup deadlines.
+
+Publication pushes to `ghcr.io/cocoa-xu/nerves_system_macos` with the version tag
+from [Image versions](base-images.md#image-versions). Existing tags are rejected.
+Tart writes OCI blobs to a loopback registry; Elixir/OTP uploads them with an
+explicit PEM CA bundle. The job token is removed from the environment before
+Tart or a guest verification process starts.
+
+New GHCR packages default to private. On the first publication, set the package
+visibility to **Public** in its GitHub settings. The job waits up to 30 minutes
+for anonymous access, then downloads the image through the production OCI
+provider and verifies a cold boot. See GitHub's
+[package visibility settings](https://docs.github.com/en/packages/learn-github-packages/configuring-a-packages-access-control-and-visibility).
+
+The job creates a GitHub release only after remote verification. It attaches the
+pinned base specification, build inputs, validation result and OCI manifest.
+macOS 27 releases are marked prerelease and are not selected as Latest. All
+assets upload before the draft release is published.
+
+Cleanup runs after each version, including on failure. It stops only that run's
+VMs and checks that their disks are closed before removing downloads and build
+outputs. Logs and metadata remain as an Actions artifact for 14 days. VM disks
+are not uploaded as Actions artifacts.
 
 Before starting the runner, check the release inputs and queued jobs in its
 repository. Jobs can wait for an offline runner and run when it connects.

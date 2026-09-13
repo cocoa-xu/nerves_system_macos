@@ -1,3 +1,5 @@
+Code.require_file("publish.exs", __DIR__)
+
 defmodule BaseImageCI do
   alias Nerves.System.MacOS.{BaseImage, BaseSpec, Command, Files, HTTP}
 
@@ -28,12 +30,26 @@ defmodule BaseImageCI do
     logs = Path.expand(".nerves/ci-logs")
     File.mkdir_p!(logs)
 
-    try do
-      build(root, logs, inputs)
-    after
-      cleanup()
-    end
+    build(root, logs, inputs)
   end
+
+  def publish do
+    root = work_root()
+
+    unless File.read!(Path.join(root, ".ci-run")) == run_id(),
+      do: raise("The work directory belongs to another run")
+
+    logs = Path.expand(".nerves/ci-logs")
+    result = Path.join(logs, "result.json") |> File.read!() |> Jason.decode!()
+
+    unless result["result"] == "passed" and result["revision"] == System.fetch_env!("GITHUB_SHA") and
+             result["run_id"] == run_id(),
+           do: raise("The current run must pass before publishing")
+
+    BaseImagePublication.publish(Path.join(root, "base.tart"), profile!(), root, logs)
+  end
+
+  def check_publication, do: BaseImagePublication.check(profile!())
 
   def cleanup do
     root = work_root()
@@ -67,7 +83,7 @@ defmodule BaseImageCI do
   defp inputs! do
     System.put_env("PACKER_CONFIG", Path.expand("ci/packer.json"))
     Files.host!()
-    profile = "ci/macos15.json" |> File.read!() |> Jason.decode!()
+    profile = profile!()
 
     config_path =
       System.get_env(
@@ -195,7 +211,8 @@ defmodule BaseImageCI do
       stream: true
     )
 
-    selected_spec = Path.join(project, "examples/selectable_system/bases/macos15.json")
+    major = profile["macos"]["version"] |> String.split(".") |> hd()
+    selected_spec = Path.join(project, "examples/selectable_system/bases/macos#{major}.json")
 
     Command.run!(
       "mix",
@@ -203,7 +220,7 @@ defmodule BaseImageCI do
         "nerves.macos.base",
         "lock",
         "--macos",
-        "15",
+        major,
         "--image-version",
         profile["image_version"],
         "--source",
@@ -220,7 +237,7 @@ defmodule BaseImageCI do
     File.cp!(Path.join(project, "mix.lock"), Path.join(project, "examples/hello/mix.lock"))
 
     env = %{
-      "MIX_TARGET" => "macos15",
+      "MIX_TARGET" => "macos" <> major,
       "NERVES_ARTIFACTS_DIR" => Path.join(root, "artifacts"),
       "NERVES_MACOS_OTP_ROOT" => Path.join(otp, "usr/local/lib/erlang")
     }
@@ -256,7 +273,13 @@ defmodule BaseImageCI do
       "run_id" => run_id()
     })
 
-    IO.puts("macOS 15 passed a clean base build, Nerves firmware build and two cold boots")
+    IO.puts("macOS #{major} passed a clean base build, Nerves firmware build and two cold boots")
+  end
+
+  defp profile! do
+    major = System.get_env("MACOS_MAJOR", "15")
+    unless major in ~w(15 26 27), do: raise("Select macOS 15, 26 or 27")
+    "ci/macos#{major}.json" |> File.read!() |> Jason.decode!()
   end
 
   defp tools! do
@@ -297,6 +320,8 @@ end
 case System.argv() do
   [] -> BaseImageCI.run()
   ["check"] -> BaseImageCI.check()
+  ["check-publication"] -> BaseImageCI.check_publication()
+  ["publish"] -> BaseImageCI.publish()
   ["cleanup"] -> BaseImageCI.cleanup()
-  _ -> raise "Usage: mix run ci/base-image.exs [check|cleanup]"
+  _ -> raise "Usage: mix run ci/base-image.exs [check|check-publication|publish|cleanup]"
 end

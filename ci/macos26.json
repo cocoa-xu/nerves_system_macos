@@ -1,0 +1,16 @@
+{
+  "image_version": "0.1.0",
+  "prerelease": false,
+  "macos": {"version": "26.6.2", "build": "25G83", "architecture": "arm64"},
+  "builder_revision": "c44b0545ef832908988bc26abc842839d83912b6",
+  "recipe": "config/tahoe-26.6.2.env",
+  "ipsw": {
+    "url": "https://updates.cdn-apple.com/2026SummerFCS/fullrestores/140-75212/A2A24B94-1FC1-45A3-93F7-C51B02AF1F4D/UniversalMac_26.6.2_25G83_Restore.ipsw",
+    "size": 19772231540,
+    "sha256": "885503b7f4b06609e9a512f2befd40f59730640a3f1233e3892d60affdd51c95"
+  },
+  "otp": {
+    "version": "29.0.2",
+    "sha256": "cdf2382ffd0d7d79eb37e0e4b59549cfc8343fdffc9855eea235f12ecfb1ccf3"
+  }
+}

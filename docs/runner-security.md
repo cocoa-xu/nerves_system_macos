@@ -11,8 +11,9 @@ repository used for releases. Give access only to trusted release maintainers.
 Keep public pull-request checks on GitHub-hosted runners.
 
 The [base workflow](../.github/workflows/base-image.yml) accepts manual runs on
-`main` and formal image version tags. It allows only the repository owner's
-original runs and reruns. A GitHub-hosted job checks that the commit belongs to
+`main`, formal image version tags, and publication requests pushed to `main`.
+It allows only the repository owner's original runs and reruns. A GitHub-hosted
+job checks that the commit belongs to
 `main` and each pushed tag matches exactly one pinned profile before the Mac mini
 receives work. It has no pull-request trigger.
 
@@ -91,6 +92,22 @@ hashes, pinned inputs and the original successful CI build step. It retains the
 original build revision in the image and release metadata. The saved base is
 removed after publication and anonymous boot verification succeed. Leave this
 input empty to build from the IPSW.
+
+Recovery can also be requested through Git. Commit `ci/publication.json` to
+`main` with the selected version and original run ID:
+
+```json
+{
+  "macos": "15",
+  "verified_run": "123456789-1"
+}
+```
+
+Push this request separately from other file changes. The authorization job
+checks the push changes only this file and selects a single version and saved run
+ID before scheduling the Mac mini. The owner restrictions and saved-base
+verification apply to this path too. Other pushes to `main` do not request
+publication.
 
 Cleanup runs after each version, including on failure. It stops only that run's
 VMs and checks that their disks are closed before removing downloads and build

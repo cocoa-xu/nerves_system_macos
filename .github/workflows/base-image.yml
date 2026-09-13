@@ -1,9 +1,11 @@
 name: Build macOS base
-run-name: macOS ${{ inputs.macos || github.ref_name }} base images
+run-name: macOS base images (${{ inputs.macos || github.ref_name }})
 
 on:
   push:
+    branches: [main]
     tags: ['*-v*']
+    paths: [ci/publication.json]
   workflow_dispatch:
     inputs:
       macos:
@@ -37,11 +39,13 @@ jobs:
       github.repository == 'cocoa-xu/nerves_system_macos' &&
       github.actor == 'cocoa-xu' && github.triggering_actor == 'cocoa-xu' &&
       ((github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main') ||
-       (github.event_name == 'push' && github.ref_type == 'tag'))
+       (github.event_name == 'push' &&
+        (github.ref_type == 'tag' || github.ref == 'refs/heads/main')))
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     outputs:
       versions: ${{ steps.versions.outputs.versions }}
+      verified_run: ${{ steps.versions.outputs.verified_run }}
     steps:
       - uses: actions/checkout@v7
         with:
@@ -55,6 +59,8 @@ jobs:
           MACOS: ${{ inputs.macos }}
           EVENT: ${{ github.event_name }}
           REF: ${{ github.ref_name }}
+          REF_TYPE: ${{ github.ref_type }}
+          BEFORE: ${{ github.event.before }}
           VERIFIED_RUN: ${{ inputs.verified_run }}
           PUBLISH: ${{ inputs.publish }}
         run: |
@@ -62,16 +68,35 @@ jobs:
           import json
           import os
           import re
+          import subprocess
           from pathlib import Path
 
           versions = ["15", "26", "27"]
-          if os.environ["VERIFIED_RUN"]:
-              if (os.environ["EVENT"] != "workflow_dispatch" or
-                  os.environ["MACOS"] not in versions or
-                  os.environ["PUBLISH"] != "true" or
-                  not re.fullmatch(r"[1-9]\d*-[1-9]\d*", os.environ["VERIFIED_RUN"])):
-                  raise SystemExit("Select one macOS version, enable publication and enter a saved run ID-attempt")
-          if os.environ["EVENT"] == "push":
+          macos = os.environ["MACOS"]
+          verified_run = os.environ["VERIFIED_RUN"]
+          event = os.environ["EVENT"]
+          if event == "push" and os.environ["REF_TYPE"] == "branch":
+              before = os.environ["BEFORE"]
+              if os.environ["REF"] != "main" or not re.fullmatch(r"[0-9a-f]{40}", before):
+                  raise SystemExit("Publication requests must be pushed to main")
+              changed = subprocess.run(
+                  ["git", "diff", "--name-only", "-z", before, "HEAD"],
+                  check=True,
+                  capture_output=True,
+                  timeout=30,
+              )
+              if changed.stdout != b"ci/publication.json\0":
+                  raise SystemExit("Publication requests must be pushed without other file changes")
+              path = Path("ci/publication.json")
+              if path.is_symlink() or not path.is_file():
+                  raise SystemExit("ci/publication.json must be a regular file")
+              request = json.loads(path.read_text())
+              if not isinstance(request, dict) or set(request) != {"macos", "verified_run"}:
+                  raise SystemExit("Publication requests require macos and verified_run")
+              macos, verified_run = request["macos"], request["verified_run"]
+              if not isinstance(verified_run, str) or not verified_run:
+                  raise SystemExit("Publication requests require a saved run ID-attempt")
+          elif event == "push" and os.environ["REF_TYPE"] == "tag":
               matches = []
               for major in versions:
                   profile = json.loads(Path(f"ci/macos{major}.json").read_text())
@@ -80,13 +105,22 @@ jobs:
                       matches.append(major)
               if len(matches) != 1:
                   raise SystemExit("The release tag must match exactly one pinned profile")
-              versions = matches
-          elif os.environ["MACOS"] != "all":
-              if os.environ["MACOS"] not in versions:
+              macos = matches[0]
+              verified_run = ""
+          elif event != "workflow_dispatch":
+              raise SystemExit("Unsupported workflow event")
+          if verified_run:
+              if (macos not in versions or
+                  (event == "workflow_dispatch" and os.environ["PUBLISH"] != "true") or
+                  not re.fullmatch(r"[1-9]\d*-[1-9]\d*", verified_run)):
+                  raise SystemExit("Select one macOS version, enable publication and enter a saved run ID-attempt")
+          if macos != "all":
+              if macos not in versions:
                   raise SystemExit("Select macOS 15, 26 or 27")
-              versions = [os.environ["MACOS"]]
+              versions = [macos]
           with open(os.environ["GITHUB_OUTPUT"], "a") as output:
               output.write("versions=" + json.dumps(versions) + "\n")
+              output.write("verified_run=" + verified_run + "\n")
           PY
 
   build:
@@ -104,7 +138,7 @@ jobs:
         macos: ${{ fromJSON(needs.authorize.outputs.versions) }}
     env:
       MACOS_MAJOR: ${{ matrix.macos }}
-      VERIFIED_RUN: ${{ inputs.verified_run }}
+      VERIFIED_RUN: ${{ needs.authorize.outputs.verified_run }}
       PATH: /opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin
       HEX_CACERTS_PATH: /opt/homebrew/etc/openssl@3/cert.pem
       NERVES_MACOS_CACERT: /opt/homebrew/etc/openssl@3/cert.pem
@@ -142,11 +176,11 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: mix run ci/base-image.exs check-publication
       - name: Build and verify macOS
-        if: inputs.verified_run == ''
+        if: needs.authorize.outputs.verified_run == ''
         timeout-minutes: 100
         run: mix run ci/base-image.exs 2>&1 | tee .nerves/ci-logs/build.log
       - name: Restore the verified CI base
-        if: inputs.verified_run != ''
+        if: needs.authorize.outputs.verified_run != ''
         timeout-minutes: 10
         run: mix run ci/base-image.exs restore 2>&1 | tee .nerves/ci-logs/restore.log
       - name: Publish and verify the base

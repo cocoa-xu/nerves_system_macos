@@ -2,9 +2,6 @@ name: Build macOS base
 
 on:
   workflow_dispatch:
-  push:
-    tags:
-      - ci-macos15-*
 
 permissions:
   contents: read
@@ -22,11 +19,11 @@ jobs:
     if: >-
       github.repository == 'cocoa-xu/nerves_system_macos' &&
       github.actor == 'cocoa-xu' && github.triggering_actor == 'cocoa-xu' &&
-      (github.event_name == 'push' || github.ref == 'refs/heads/main')
+      github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - uses: actions/checkout@v7
         with:
           persist-credentials: false
           fetch-depth: 0
@@ -56,7 +53,7 @@ jobs:
       GUEST_USERNAME: admin
       GUEST_PASSWORD: admin
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - uses: actions/checkout@v7
         timeout-minutes: 3
         with:
           persist-credentials: false

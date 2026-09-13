@@ -11,13 +11,13 @@ repository used for releases. Give access only to trusted release maintainers.
 Keep public pull-request checks on GitHub-hosted runners.
 
 The [base workflow](../.github/workflows/base-image.yml) accepts manual runs on
-`main` and tags named `ci-macos15-*`. It allows only the repository owner's
-original runs and reruns. A GitHub-hosted job checks that the commit belongs to
-`main` before the Mac mini receives work. It has no pull-request trigger.
+`main`. It allows only the repository owner's original runs and reruns. A
+GitHub-hosted job checks that the commit belongs to `main` before the Mac mini
+receives work. It has no pull-request trigger.
 
-Actions are pinned to full commit SHAs. The job has read access to repository
-contents, does not retain checkout credentials, and has no package write access.
-These workflow checks are not a runner access policy: anyone who can change
+The job has read access to repository contents, does not retain checkout
+credentials, and has no package write access. These workflow checks are not a
+runner access policy: anyone who can change
 eligible workflows could request the same runner. A private release repository
 remains preferable when other contributors receive write access.
 
@@ -36,6 +36,8 @@ IPSW size and SHA-256, and OTP SHA-256. It does not reuse a prepared local VM.
 Install the README prerequisites, Tart 2.36.0, Packer 1.16.0, Go 1.25.0 and the
 Tart Packer plugin 1.21.0 before starting the runner. The builder's pinned Go
 dependencies must already be in its module cache; CI disables Go module downloads.
+[Checkout v7](https://github.com/actions/checkout/tree/v7) requires Actions Runner
+2.327.1 or newer for its Node 24 runtime.
 The job uses `/opt/homebrew/etc/openssl@3/cert.pem` for TLS verification.
 Packer's update checks and telemetry are disabled through `ci/packer.json`.
 
@@ -56,16 +58,10 @@ SHA-256. The checkout must be clean at the revision in `ci/macos15.json`. The jo
 copies that revision into its work directory and checks the executable hash.
 `NERVES_MACOS_RUNNER_CONFIG` can select another configuration file.
 
-Start **Build macOS base** from Actions on `main`, or tag a reviewed commit:
-
-```sh
-git tag ci-macos15-20260913-1 COMMIT_SHA
-git push origin ci-macos15-20260913-1
-```
-
-Use a new tag for each run. Builds run one at a time, require 100 GiB free, and
-have a two-hour job timeout. Logs and result metadata are retained as an Actions
-artifact for 14 days. Cleanup stops only this run's VMs and checks that their
+Start **Build macOS base** from Actions on `main` after reviewing the commit.
+Builds run one at a time, require 100 GiB free, and have a two-hour job timeout.
+Logs and result metadata are retained as an Actions artifact for 14 days.
+Cleanup stops only this run's VMs and checks that their
 disks are closed before removing downloads and build outputs. This first workflow
 does not publish images to GHCR or upload VM disks as Actions artifacts.
 

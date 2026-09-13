@@ -32,8 +32,7 @@ See GitHub's [runner group documentation](https://docs.github.com/en/enterprise-
 The workflow builds macOS 15, 26 or 27 from pinned IPSWs, verifies each blank
 guest, builds the Nerves example with OTP 29.0.2, and checks two cold boots.
 The profiles in [ci/](../ci) record the image version, builder revision, IPSW
-size and SHA-256, and OTP SHA-256. Every build restores a new VM; existing local
-images are never CI inputs.
+size and SHA-256, and OTP SHA-256. Every new build restores a new VM.
 
 Install the README prerequisites, Tart 2.36.0, Packer 1.16.0, Go 1.25.0 and the
 Tart Packer plugin 1.21.0 before starting the runner. The builder's pinned Go
@@ -83,6 +82,15 @@ The job creates a GitHub release only after remote verification. It attaches the
 pinned base specification, build inputs, validation result and OCI manifest.
 macOS 27 releases are marked prerelease and are not selected as Latest. All
 assets upload before the draft release is published.
+
+If an upload fails before the registry tag is published, run the workflow on
+`main`, select the same macOS version, enable publication and set **verified_run**
+to the original run ID and attempt, such as `123456789-1`. The runner saves passed
+bases under `~/.cache/nerves-system-macos/verified/`. Recovery checks their file
+hashes, pinned inputs and the original successful CI build step. It retains the
+original build revision in the image and release metadata. The saved base is
+removed after publication and anonymous boot verification succeed. Leave this
+input empty to build from the IPSW.
 
 Cleanup runs after each version, including on failure. It stops only that run's
 VMs and checks that their disks are closed before removing downloads and build

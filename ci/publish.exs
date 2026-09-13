@@ -15,14 +15,12 @@ defmodule BaseImagePublication do
     IO.puts("GHCR authentication passed and release tag #{tag} is unused")
   end
 
-  def publish(base, profile, root, logs) do
-    token = System.fetch_env!("GH_TOKEN")
-    System.delete_env("GH_TOKEN")
+  def publish(base, profile, revision, root, logs, token) do
     tag = BaseSpec.tag(profile)
     manifest_url = @registry <> "/v2/#{@repository}/manifests/#{tag}"
     require_status!(registry_request(token, :head, manifest_url), [404])
     directory = Path.join(root, "publication")
-    manifest_path = export(base, profile, directory)
+    manifest_path = export(base, profile, revision, directory)
     manifest = manifest_path |> File.read!() |> Jason.decode!()
     digest = "sha256:" <> Files.sha256(manifest_path)
     descriptors = Enum.uniq_by([manifest["config"] | manifest["layers"]], & &1["digest"])
@@ -59,7 +57,7 @@ defmodule BaseImagePublication do
     IO.puts("Downloading the published base anonymously and verifying a cold boot")
     BaseImage.prepare(spec_path, imported)
     File.cp!(imported <> ".log", Path.join(logs, "published-guest.log"))
-    release = create_release(profile, spec, logs, token)
+    release = create_release(profile, spec, revision, logs, token)
 
     Files.write_json(Path.join(logs, "publication.json"), %{
       "tag" => tag,
@@ -72,7 +70,7 @@ defmodule BaseImagePublication do
     IO.puts("Published and verified #{release["html_url"]}")
   end
 
-  def export(base, profile, directory) do
+  def export(base, profile, revision, directory) do
     BaseImageRegistry.with_server(directory, fn reference ->
       VM.with_copy(base, Path.dirname(directory), fn vm ->
         [host, _repository] = String.split(reference, "/", parts: 2)
@@ -87,7 +85,7 @@ defmodule BaseImagePublication do
         labels = %{
           "org.opencontainers.image.source" => "https://github.com/#{@repository}",
           "org.opencontainers.image.version" => profile["image_version"],
-          "org.opencontainers.image.revision" => System.fetch_env!("GITHUB_SHA"),
+          "org.opencontainers.image.revision" => revision,
           "org.opencontainers.image.title" => "macOS #{profile["macos"]["version"]} base"
         }
 
@@ -245,7 +243,7 @@ defmodule BaseImagePublication do
     end)
   end
 
-  defp create_release(profile, spec, logs, token) do
+  defp create_release(profile, spec, revision, logs, token) do
     tag = BaseSpec.tag(profile)
     reference = spec["source"]["reference"]
 
@@ -266,7 +264,7 @@ defmodule BaseImagePublication do
     payload =
       Jason.encode!(%{
         "tag_name" => tag,
-        "target_commitish" => System.fetch_env!("GITHUB_SHA"),
+        "target_commitish" => revision,
         "name" =>
           "macOS #{profile["macos"]["version"]} (#{profile["macos"]["build"]}), image #{profile["image_version"]}",
         "body" => String.trim(body),

@@ -1,4 +1,5 @@
 Code.require_file("publish.exs", __DIR__)
+Code.require_file("verified-base.exs", __DIR__)
 
 defmodule BaseImageCI do
   alias Nerves.System.MacOS.{BaseImage, BaseSpec, Command, Files, HTTP}
@@ -34,6 +35,8 @@ defmodule BaseImageCI do
   end
 
   def publish do
+    token = System.fetch_env!("GH_TOKEN")
+    System.delete_env("GH_TOKEN")
     root = work_root()
 
     unless File.read!(Path.join(root, ".ci-run")) == run_id(),
@@ -42,11 +45,40 @@ defmodule BaseImageCI do
     logs = Path.expand(".nerves/ci-logs")
     result = Path.join(logs, "result.json") |> File.read!() |> Jason.decode!()
 
-    unless result["result"] == "passed" and result["revision"] == System.fetch_env!("GITHUB_SHA") and
-             result["run_id"] == run_id(),
-           do: raise("The current run must pass before publishing")
+    if verified_run() == "" do
+      unless result["result"] == "passed" and
+               result["revision"] == System.fetch_env!("GITHUB_SHA") and
+               result["run_id"] == run_id(),
+             do: raise("The current run must pass before publishing")
 
-    BaseImagePublication.publish(Path.join(root, "base.tart"), profile!(), root, logs)
+      VerifiedBase.save(Path.join(root, "base.tart"), logs, result)
+    else
+      unless File.read!(Path.join(root, ".verified-run")) == verified_run() and
+               result["run_id"] == verified_run(),
+             do: raise("The saved CI base must be verified before publishing")
+    end
+
+    BaseImagePublication.publish(
+      Path.join(root, "base.tart"),
+      profile!(),
+      result["revision"],
+      root,
+      logs,
+      token
+    )
+
+    VerifiedBase.remove(result)
+  end
+
+  def restore do
+    root = work_root()
+    Files.absent!(root)
+    File.mkdir_p!(root)
+    File.write!(Path.join(root, ".ci-run"), run_id())
+    logs = Path.expand(".nerves/ci-logs")
+    File.mkdir_p!(logs)
+    VerifiedBase.restore(profile!(), verified_run(), root, logs)
+    File.write!(Path.join(root, ".verified-run"), verified_run())
   end
 
   def check_publication, do: BaseImagePublication.check(profile!())
@@ -310,6 +342,8 @@ defmodule BaseImageCI do
 
   defp work_root, do: Path.join(System.fetch_env!("RUNNER_TEMP"), "nerves-macos-" <> run_id())
 
+  defp verified_run, do: System.get_env("VERIFIED_RUN", "")
+
   defp run_id do
     value = System.fetch_env!("GITHUB_RUN_ID") <> "-" <> System.fetch_env!("GITHUB_RUN_ATTEMPT")
     unless Regex.match?(~r/\A\d+-\d+\z/, value), do: raise("Expected a GitHub Actions run ID")
@@ -322,6 +356,7 @@ case System.argv() do
   ["check"] -> BaseImageCI.check()
   ["check-publication"] -> BaseImageCI.check_publication()
   ["publish"] -> BaseImageCI.publish()
+  ["restore"] -> BaseImageCI.restore()
   ["cleanup"] -> BaseImageCI.cleanup()
-  _ -> raise "Usage: mix run ci/base-image.exs [check|check-publication|publish|cleanup]"
+  _ -> raise "Usage: mix run ci/base-image.exs [check|check-publication|publish|restore|cleanup]"
 end

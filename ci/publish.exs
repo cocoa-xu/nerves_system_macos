@@ -12,7 +12,7 @@ defmodule BaseImagePublication do
     tag = BaseSpec.tag(profile)
     url = @registry <> "/v2/#{@repository}/manifests/#{tag}"
     require_status!(authenticated_head(token, url), [404])
-    IO.puts("GHCR authentication passed and release tag #{tag} is unused")
+    Mix.shell().info("GHCR authentication passed and release tag #{tag} is unused")
   end
 
   def prepare(base, profile, revision, root, logs) do
@@ -50,7 +50,7 @@ defmodule BaseImagePublication do
     wait_for_public_package!(@registry <> "/v2/#{@repository}/manifests/#{tag}", digest)
     File.rm_rf!(Path.join(root, "publication"))
     imported = Path.join(root, "downloaded.tart")
-    IO.puts("Downloading the published base anonymously and verifying a cold boot")
+    Mix.shell().info("Downloading the published base anonymously and verifying a cold boot")
     BaseImage.prepare(spec_path, imported)
     File.cp!(imported <> ".log", Path.join(logs, "published-guest.log"))
 
@@ -60,7 +60,7 @@ defmodule BaseImagePublication do
       "anonymous_pull" => "passed"
     })
 
-    IO.puts("Published and verified #{spec["source"]["reference"]}")
+    Mix.shell().info("Published and verified #{spec["source"]["reference"]}")
   end
 
   def export(base, profile, revision, directory) do
@@ -166,7 +166,10 @@ defmodule BaseImagePublication do
   end
 
   defp wait_for_public_package!(url, digest) do
-    IO.puts("Checking anonymous access; a new GHCR package may need its visibility set to public")
+    Mix.shell().info(
+      "Checking anonymous access; a new GHCR package may need its visibility set to public"
+    )
+
     deadline = System.monotonic_time(:millisecond) + 1_800_000
     options = options() ++ [timeout: 15_000]
 
@@ -213,7 +216,7 @@ defmodule BaseImagePublication do
         if attempt == 120,
           do: raise("Set the GHCR package visibility to public before verification")
 
-        if rem(attempt, 4) == 1, do: IO.puts("Waiting for anonymous GHCR access")
+        if rem(attempt, 4) == 1, do: Mix.shell().info("Waiting for anonymous GHCR access")
         Process.sleep(min(15_000, max(0, deadline - System.monotonic_time(:millisecond))))
         {:cont, nil}
       end

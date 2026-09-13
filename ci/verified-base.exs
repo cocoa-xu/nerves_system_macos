@@ -16,7 +16,7 @@ defmodule VerifiedBase do
 
     hashes = Map.new(@files, &{&1, Files.sha256(Path.join(directory, &1))})
     Files.write_json(Path.join(directory, "sha256.json"), hashes)
-    IO.puts("Saved verified CI base #{result["run_id"]}")
+    Mix.shell().info("Saved verified CI base #{result["run_id"]}")
   end
 
   def restore(profile, run_id, root, logs) do
@@ -43,7 +43,7 @@ defmodule VerifiedBase do
     for name <- ~w(inputs.json result.json),
         do: File.cp!(Path.join(directory, name), Path.join(logs, name))
 
-    IO.puts("Restored verified CI base #{run_id} from #{result["revision"]}")
+    Mix.shell().info("Restored verified CI base #{run_id} from #{result["revision"]}")
   end
 
   def remove(result), do: File.rm_rf!(directory(result))

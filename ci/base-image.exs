@@ -18,7 +18,7 @@ defmodule BaseImageCI do
       |> String.to_integer()
 
     if free < 100 * 1024 * 1024, do: raise("A base build requires at least 100 GiB free")
-    IO.puts("Builder, tools, PEM bundle and disk space are ready")
+    Mix.shell().info("Builder, tools, PEM bundle and disk space are ready")
     {profile, runner, versions}
   end
 
@@ -115,7 +115,7 @@ defmodule BaseImageCI do
       end
 
       File.rm_rf!(root)
-      IO.puts("Removed this run's VMs, downloads and build outputs")
+      Mix.shell().info("Removed this run's VMs, downloads and build outputs")
     end
   end
 
@@ -166,7 +166,7 @@ defmodule BaseImageCI do
     BaseImage.verify_checkout!(repository, profile["builder_revision"])
 
     ipsw = Path.join(root, "restore.ipsw")
-    IO.puts("Downloading and checking macOS #{profile["macos"]["version"]} IPSW")
+    Mix.shell().info("Downloading and checking macOS #{profile["macos"]["version"]} IPSW")
 
     download =
       HTTP.download(profile["ipsw"]["url"], ipsw,
@@ -218,7 +218,7 @@ defmodule BaseImageCI do
     spec_path = Path.join(root, "base.json")
     Files.write_json(spec_path, spec)
     base = Path.join(root, "base.tart")
-    IO.puts("Building and cold-booting the blank base")
+    Mix.shell().info("Building and cold-booting the blank base")
     BaseImage.prepare(spec_path, base)
     File.cp!(base <> ".log", Path.join(logs, "base-guest.log"))
     File.cp!(Path.join(base, "nerves-base.json"), Path.join(logs, "base.json"))
@@ -312,7 +312,9 @@ defmodule BaseImageCI do
       "run_id" => run_id()
     })
 
-    IO.puts("macOS #{major} passed a clean base build, Nerves firmware build and two cold boots")
+    Mix.shell().info(
+      "macOS #{major} passed a clean base build, Nerves firmware build and two cold boots"
+    )
   end
 
   defp profile! do

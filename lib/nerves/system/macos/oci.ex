@@ -49,7 +49,7 @@ defmodule Nerves.System.MacOS.OCI do
     download_blob!(base, directory, config, options)
     verify_version!(config, directory, spec["image_version"])
     remaining = Enum.reject(descriptors, &(&1["digest"] == config["digest"]))
-    IO.puts("Downloading #{length(remaining)} pinned OCI blobs")
+    Mix.shell().info("Downloading #{length(remaining)} pinned OCI blobs")
 
     remaining
     |> Task.async_stream(

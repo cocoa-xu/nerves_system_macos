@@ -23,7 +23,7 @@ defmodule Nerves.System.MacOS.Firmware do
 
     VM.with_copy(config.base_image, Path.dirname(path), fn vm ->
       for boot <- 1..2 do
-        IO.puts("Verifying cold boot #{boot}/2")
+        Mix.shell().info("Verifying cold boot #{boot}/2")
         VM.verify(vm, config, path <> ".verify.log")
       end
     end)

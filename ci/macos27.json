@@ -2,7 +2,7 @@
   "image_version": "0.1.0",
   "prerelease": true,
   "macos": {"version": "27.0", "build": "26A428", "architecture": "arm64"},
-  "builder_revision": "19d383da1d07f3007c5e4587a0d4fc3a942813e6",
+  "builder_revision": "14fe5e087b179f6efb71f5537fb1e19a077fb31f",
   "recipe": "config/macos-27.0-rc.env",
   "ipsw": {
     "url": "https://updates.cdn-apple.com/2026FallFCS/afcfc88e-bbe6-44bf-a5da-07c56eebc06c/UniversalMac_27.0_26A428_Restore.ipsw",

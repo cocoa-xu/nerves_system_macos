@@ -49,7 +49,8 @@ to verify the guest. A shared file format alone does not satisfy these checks.
 
 Each base also has an `image_version`, independent of macOS and the Mix package
 version. For example, macOS `26.6.2`, Apple build `25G83`, and image version `0.1.0`
-produce the tag `26.6.2-25G83-v0.1.0`.
+produce the tag `26.6.2-25G83-v0.1.0`. Use this tag for the OCI image and its
+GitHub release.
 
 Assign a new image version whenever a published base is rebuilt. A setup fix can
 be `0.1.1` even if the macOS build stays the same. Keep the old tag and digest so

@@ -76,8 +76,21 @@ been uploaded to GHCR yet.
 
 ## macOS 15
 
-macOS 15.6.1 (24G90), image version `0.1.0`, passed a full Tart OCI roundtrip and
-the `macos15` application workflow on the same host. A fresh IPSW restore used
+macOS 15.6.1 (24G90), image version `0.1.0`, passed a clean build in
+[GitHub Actions](https://github.com/cocoa-xu/nerves_system_macos/actions/runs/34740512619).
+The Mac mini restored the pinned IPSW, completed the fixed Setup Assistant
+scripts and Packer provisioning, and verified an independent blank-base boot.
+Nerves then built the system, compiled the example's C NIF, installed the firmware,
+and verified two cold boots with distinct application boot IDs. The entire run
+completed without manual intervention, screenshots, OCR, or phase retries.
+Packer update checks and telemetry were disabled throughout this run.
+
+The build job took 31 minutes 45 seconds. Cleanup removed its VMs, IPSW, system
+artifact and firmware. Guest logs and result metadata were uploaded as a small
+Actions artifact with 14-day retention. No VM image was published by this job.
+
+A separate local run passed a full Tart OCI roundtrip and the `macos15`
+application workflow on the same host. Its fresh IPSW restore used
 the existing fixed Setup Assistant scripts. Packer installed Command Line Tools
 16.4, and an independent clone passed the base builder's cold-boot checks.
 
@@ -98,10 +111,10 @@ passed application startup, Darwin/arm64 NIF, crypto and SSL checks. Both cold
 boots produced distinct boot IDs and ended with clean shutdowns. The full OCI
 acquisition, firmware build and two-boot sequence completed without retries.
 
-The verified blank base was retained for publication. The restore download,
-registry blobs, temporary VMs, application firmware and system cache were removed
-after saving the results. This used independent caches on one Mac; GHCR
-publication and acquisition from another physical host have not been tested.
+The local blank base, restore download, registry blobs, temporary VMs, application
+firmware and system cache were removed after saving the results. This used
+independent caches on one Mac; GHCR publication and acquisition from another
+physical host have not been tested.
 
 ## Layer distribution
 

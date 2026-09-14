@@ -22,7 +22,7 @@ defmodule NervesSystemMacOSSelected.MixProject do
       aliases: [loadconfig: [&bootstrap/1]],
       deps: [
         {:nerves, "~> 1.15", runtime: false},
-        {:nerves_system_macos, path: "../..", runtime: false}
+        {:nerves_system_macos, path: "../../..", runtime: false}
       ]
     ]
   end

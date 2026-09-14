@@ -6,8 +6,9 @@ It uses Tart and OpenSSH to prepare VM images, supplies the Darwin SDK environme
 for native compilation, and installs Elixir releases as launchd services.
 
 System packages use this platform in the same way that Linux system packages use
-`nerves_system_br`. Start with the [example system](examples/system) and
-[application](examples/hello), or read about [selecting a base](docs/base-images.md)
+`nerves_system_br`. Start with the
+[LiveView example](https://github.com/cocoa-xu/nerves_system_macos_info),
+or read about [selecting a base](docs/base-images.md)
 to choose macOS 15, 26 or 27. All three have passed native application builds and
 two cold boots. Public base images are available for each profile; macOS 27
 remains a prerelease.
@@ -65,30 +66,21 @@ dependencies. This initial platform accepts Apple system libraries and staticall
 linked dependencies; runtime dependencies on Homebrew or other external library
 paths are rejected.
 
-## Build the example
+## Build an application
 
-```sh
-export NERVES_MACOS_BASE=/absolute/path/to/stopped-base.tart
-export NERVES_MACOS_OTP_ROOT="$PWD/.nerves/otp-29.0.2/usr/local/lib/erlang"
-export MIX_TARGET=macos
-cd examples/hello
-mix deps.get
-mix firmware
-```
+The [LiveView example](https://github.com/cocoa-xu/nerves_system_macos_info)
+contains a complete system package and application, with build instructions.
+It serves macOS metrics and uses `stb_image` for native image decoding.
 
-The example system pins macOS 26.6.2, build 25G83, and OTP 29.0.2 in
-[`examples/system/mix.exs`](examples/system/mix.exs). Use a base with that exact
-identity, or create a separate system package with the versions you intend to
-support. Keep those versions in the system package's checksum inputs. Changing
-the base or OTP contents requires a new system package version or an explicit
-artifact clean and rebuild.
+Pin the macOS and OTP versions in your system package's checksum inputs.
+Changing the base or OTP contents requires a new system package version or an
+explicit artifact clean and rebuild.
 
 Nerves builds and caches the system artifact, activates the SDK, and compiles the
-application. The example includes a C NIF that reports Darwin/arm64 and starts
-crypto and SSL. Firmware assembly then installs the release into a fresh copy of
+application. Firmware assembly installs the release into a fresh copy of
 the system, checks the running applications over local RPC, and shuts it down.
 
-The default output is `_build/macos_dev/nerves/hello_macos.macos/`:
+Each firmware output contains:
 
 ```text
 nerves-firmware.json
@@ -98,14 +90,14 @@ firmware.tart/
   nvram.bin
 ```
 
-Use `mix firmware --output /absolute/new/directory` for another build. The output
+Use `mix firmware --output /absolute/new/directory` to choose the destination. The output
 must not exist. The release assembly directory is rebuilt by Mix; completed VM
 outputs are never replaced.
 
 Verify the saved firmware through two cold boots of a temporary copy:
 
 ```sh
-mix nerves.macos.verify _build/macos_dev/nerves/hello_macos.macos
+mix nerves.macos.verify /absolute/path/to/firmware
 ```
 
 Each boot checks the OS, account, locale, keyboard, stable launchd process,
@@ -119,7 +111,7 @@ For macOS 15, 26 or 27 with a prebuilt, local or locally restored base, see
 [selecting a base](docs/base-images.md). Each public release includes a base
 specification pinned to its GHCR manifest digest.
 
-See [`examples/system`](examples/system). The essential package configuration is:
+The essential package configuration is:
 
 ```elixir
 nerves_package: [

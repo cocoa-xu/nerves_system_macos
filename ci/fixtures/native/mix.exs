@@ -12,9 +12,8 @@ defmodule HelloMacOS.MixProject do
       deps: [
         {:nerves, "~> 1.15", runtime: false},
         {:elixir_make, "~> 0.10", runtime: false},
-        {:nerves_system_macos_example, path: "../system", targets: :macos, runtime: false},
         {:nerves_system_macos_selected,
-         path: "../selectable_system", targets: [:macos15, :macos26, :macos27], runtime: false}
+         path: "../system", targets: [:macos15, :macos26, :macos27], runtime: false}
       ]
     ]
   end

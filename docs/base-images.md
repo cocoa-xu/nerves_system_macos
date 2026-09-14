@@ -167,12 +167,10 @@ in `checksum` is required. Changing the version, digest or source creates a
 different artifact path; earlier artifacts are kept. Existing output directories
 are never overwritten.
 
-The hello example supports `MIX_TARGET=macos15`, `macos26` and `macos27` through
-`examples/selectable_system`. Save the specification as
-`examples/selectable_system/bases/<target>.json`, set `NERVES_MACOS_OTP_ROOT`, and
-run `mix firmware` from `examples/hello`. These example specifications are ignored
-by Git because local paths vary between hosts. In your own system package, commit
-the file after reviewing it. `MIX_TARGET=macos` still uses the fixed macOS 26 example.
+The [LiveView example](https://github.com/cocoa-xu/nerves_system_macos_info)
+includes a system package with a pinned macOS 26 base. To support several targets
+in your own package, select a specification using `Mix.target()` and include that
+file in the checksum. Set `NERVES_MACOS_OTP_ROOT` before building the application.
 
 ## Remaining work
 

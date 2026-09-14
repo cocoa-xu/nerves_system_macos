@@ -25,7 +25,7 @@ SSL, dependency, guest identity and persistent-data checks.
 
 - An Apple silicon host running macOS 27 with DiskImageKit support in Tart.
 - Tart 2.36.0, Python 3.9 or later, GNU tar, and sshpass.
-- A verified system artifact and the example's dependencies already built.
+- A verified system artifact and the native acceptance fixture's dependencies built.
 - At least 120 GiB of free APFS space for temporary distribution storage.
 
 The ordinary raw firmware workflow remains available on macOS 26 hosts. This
@@ -34,9 +34,20 @@ It does not flatten the image for older hosts or other VM applications.
 
 ## Run
 
-Build the system and native example as described in the root README first.
-From the repository root, create a new input directory and download jq using an
-explicit PEM CA bundle:
+This experiment uses the same native acceptance fixture as release CI. Obtain
+OTP as described in the root README, then select a stopped local base:
+
+```sh
+export HEX_CACERTS_PATH=/opt/homebrew/etc/openssl@3/cert.pem
+export NERVES_MACOS_CACERT="$HEX_CACERTS_PATH"
+export NERVES_MACOS_OTP_ROOT="$PWD/.nerves/otp-29.0.2/usr/local/lib/erlang"
+export NERVES_ARTIFACTS_DIR="$PWD/.nerves/artifacts"
+mix nerves.macos.base lock --macos 26 --image-version 0.1.0 --source local \
+  --image /absolute/path/to/stopped-base.tart \
+  --output ci/fixtures/system/bases/macos26.json
+```
+
+From the repository root, create an input directory and download jq:
 
 ```sh
 mkdir -p .nerves/layer-inputs/dependency
@@ -51,20 +62,23 @@ The runner requires SHA-256
 published for the [jq 1.8.1 arm64 release](https://github.com/jqlang/jq/releases/tag/jq-1.8.1).
 jq retains its [upstream license](https://github.com/jqlang/jq/blob/jq-1.8.1/COPYING).
 
-Build two releases from `examples/hello`:
+Build two releases from `ci/fixtures/native`:
 
 ```sh
-MIX_TARGET=macos mix release hello_macos --version 1.0.0 \
-  --path ../../.nerves/layer-inputs/v1
-MIX_TARGET=macos mix release hello_macos --version 2.0.0 \
-  --path ../../.nerves/layer-inputs/v2
+cd ci/fixtures/native
+MIX_TARGET=macos26 mix deps.get
+MIX_TARGET=macos26 mix release hello_macos --version 1.0.0 \
+  --path ../../../.nerves/layer-inputs/v1
+MIX_TARGET=macos26 mix release hello_macos --version 2.0.0 \
+  --path ../../../.nerves/layer-inputs/v2
+cd ../../..
 ```
 
 From the repository root:
 
 ```sh
 python3 experiments/layers/run.py \
-  --system examples/system/.nerves/artifacts/nerves_system_macos_example-portable-0.1.0 \
+  --system .nerves/artifacts/nerves_system_macos_selected-portable-0.1.0 \
   --release-v1 .nerves/layer-inputs/v1 \
   --release-v2 .nerves/layer-inputs/v2 \
   --dependency .nerves/layer-inputs/dependency/jq \

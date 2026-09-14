@@ -5,10 +5,10 @@
 *.ez
 *.tar.gz
 erl_crash.dump
-/examples/*/_build/
-/examples/*/deps/
-/examples/*/.nerves/
-/examples/*/mix.lock
-/examples/*/priv/*.so
+/ci/fixtures/*/_build/
+/ci/fixtures/*/deps/
+/ci/fixtures/*/.nerves/
+/ci/fixtures/*/mix.lock
+/ci/fixtures/*/priv/*.so
 __pycache__/
-/examples/selectable_system/bases/*.json
+/ci/fixtures/system/bases/*.json

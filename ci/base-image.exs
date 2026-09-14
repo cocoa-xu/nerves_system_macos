@@ -251,7 +251,7 @@ defmodule BaseImageCI do
     )
 
     major = profile["macos"]["version"] |> String.split(".") |> hd()
-    selected_spec = Path.join(project, "examples/selectable_system/bases/macos#{major}.json")
+    selected_spec = Path.join(project, "ci/fixtures/system/bases/macos#{major}.json")
 
     Command.run!(
       "mix",
@@ -273,7 +273,7 @@ defmodule BaseImageCI do
       stream: true
     )
 
-    File.cp!(Path.join(project, "mix.lock"), Path.join(project, "examples/hello/mix.lock"))
+    File.cp!(Path.join(project, "mix.lock"), Path.join(project, "ci/fixtures/native/mix.lock"))
 
     env = %{
       "MIX_TARGET" => "macos" <> major,
@@ -281,7 +281,7 @@ defmodule BaseImageCI do
       "NERVES_MACOS_OTP_ROOT" => Path.join(otp, "usr/local/lib/erlang")
     }
 
-    hello = Path.join(project, "examples/hello")
+    hello = Path.join(project, "ci/fixtures/native")
 
     Command.run!("mix", ["deps.get", "--check-locked"],
       cd: hello,
